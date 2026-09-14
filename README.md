@@ -14,6 +14,83 @@ cure-hazard model  ->  exact finite-horizon schedule planner  ->  Thompson-sampl
 
 ---
 
+## In plain terms
+
+*Skip this if you're comfortable with the sections below; it says the same
+thing without the jargon.*
+
+**The problem.** When a customer's subscription payment fails, the business
+has to decide *when* to try charging them again, *how many times*, and *when
+to give up and ask for a new card*. Get it wrong and you either lose money you
+could have recovered, or you annoy customers into cancelling.
+
+**What most businesses do today.** A fixed ladder: try again after 1 day, then
+3 days, then 7 days. Same for everyone, no matter why the payment failed.
+That's the baseline we're trying to beat.
+
+**What this package does.** Three pieces:
+
+1. *A model that answers two questions about each failed payment.* "Is this
+   customer gone for good?" (card cancelled, moved on — nothing you do will
+   work) and "if they're not gone, when are they most likely to have money?"
+   Keeping those separate matters: without the split, the model can't tell
+   "not paid yet" from "never coming back", so it keeps retrying dead accounts
+   and gives up too early on live ones.
+2. *A planner that thinks ahead.* Instead of "what's the best time for the
+   next retry?", it asks "what's the best *sequence* of retries?" — because
+   the right first attempt depends on what you'd do if it fails. Sometimes the
+   best first move is a cheap early retry that mostly tells you whether the
+   customer is still around.
+3. *A safety system.* It refuses to switch the business over to the new
+   approach until there's real evidence it's better, and it explores new
+   timings cautiously rather than randomly.
+
+**The headline result.** Per failed invoice, in a simulated business:
+
+| approach | recovered per failed invoice |
+|---|---|
+| fixed ladder (what everyone does) | $12.92 |
+| smart timing, one retry at a time | $15.46 — 20% more |
+| smart timing, planning the whole sequence | $17.43 — **35% more** |
+
+For every $100 the fixed ladder recovers, the planner recovers about $135.
+Half of that gain comes from planning ahead, not from the prediction model — a
+cheap idea that's usually skipped.
+
+**The result we didn't expect.** The original pitch was "salaries land at
+month-end, so time retries around payday." We tested what happens if you
+delete the payday effect from the simulated world entirely. The gain barely
+changed (+31% instead of +33%). The value isn't coming from payday timing. It
+comes from two simpler things: treating a "bank was down" failure differently
+from an "insufficient funds" failure, and knowing when to stop. That's good
+news — the approach doesn't depend on a theory about salaries being right. We
+tried six other "what if the world is different" scenarios; the gain held in
+all of them, between +22% and +52%.
+
+**Small businesses.** The earlier version only worked for big merchants —
+with fewer than ~3,000 failed payments of history it actually *lost* money
+versus the ladder. This version gains +20% even at 1,500, because a small
+merchant borrows what's been learned across all merchants and only overrides
+it where they have enough data of their own.
+
+**Why the system still says "don't switch yet".** The safety gate says HOLD
+on every test, and that is the right answer. All the historical data comes
+from the old 1/3/7-day ladder, which almost never tried the timings the new
+planner wants. So there's no real-world evidence — only the model's opinion —
+that those timings work, and the gate refuses to bet revenue on an opinion.
+The practical meaning: **you can't validate this from old logs alone.** The
+rollout is: switch on the safety rules and cautious exploration first, run for
+a month, and *then* the evidence exists to judge the planner.
+
+**What to be honest about.** Every number here is from a simulation —
+plausible, not measured; what transfers to a real business is the method, not
+the "35%". The system doesn't yet do the two things that may matter most for
+"insufficient funds": remind the customer before payday, or try their other
+saved payment method. And how much a retry annoys a mobile-money customer is
+currently a guess, not a measurement.
+
+---
+
 ## The problem has three layers
 
 **1. Estimate.** Two things, not one: the probability the customer is *gone*
