@@ -1,0 +1,25 @@
+[project]
+name = "recoup"
+version = "0.2.0"
+description = "Failed-payment recovery timing: cure-hazard model, schedule planner, off-policy evaluation."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["recoup"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
