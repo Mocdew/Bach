@@ -1,0 +1,12 @@
+# Guard unit: succeeds iff a model bundle exists; otherwise runs one
+# retrain synchronously. Lets recoup-plan.service Require= something
+# concrete instead of racing the first nightly timer on a fresh install.
+[Unit]
+Description=recoup: ensure a fitted model bundle exists
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecCondition=/bin/sh -c '! test -e "${RECOUP_STATE}/models/current"'
+ExecStart=/opt/recoup/venv/bin/recoup-ops retrain --out ${RECOUP_STATE}/models
+TimeoutStartSec=2h

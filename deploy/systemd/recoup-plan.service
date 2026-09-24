@@ -1,0 +1,27 @@
+# Layer 2: plan schedules for every open failed invoice. Reads the current
+# model bundle, applies the constraints in PolicyConfig (quiet hours, issuer
+# advice, hard-decline routing), draws Thompson propensities, and writes the
+# decisions + propensities to the audit log and to the retry queue. The
+# propensity log is what makes the gate's off-policy evaluation possible
+# later, so this run is not optional even while the gate says HOLD.
+[Unit]
+Description=recoup: plan retry schedules for open failed invoices
+After=network-online.target
+Wants=network-online.target
+# A plan run needs a model. If none has ever been fitted, pull retrain in
+# first and order after it.
+Requires=recoup-model-present.service
+After=recoup-model-present.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/recoup/venv/bin/recoup-ops plan \
+    --model ${RECOUP_STATE}/models/current \
+    --gate  ${RECOUP_STATE}/gate/decision.json \
+    --audit ${RECOUP_LOG}/decisions
+TimeoutStartSec=20m
+Restart=on-failure
+RestartSec=5m
+# Planning is exact enumeration over a small grid -- cheap. Retrain is the
+# heavy one; give plan the priority inside the slice.
+CPUWeight=200

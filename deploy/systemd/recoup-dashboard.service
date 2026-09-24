@@ -1,0 +1,29 @@
+# Produce dashboard.json for the operator console. Until the Bachs adapter is
+# pinned this runs the simulator pipeline (see deploy/dashboard/export_dashboard.py),
+# so the page is labelled as simulated. ~2-3 min on one old laptop core.
+[Unit]
+Description=recoup: build operator dashboard data
+After=recoup-retrain.service
+# Don't run alongside the retrain; both are CPU-bound and both want the model.
+Conflicts=recoup-retrain.service
+
+[Service]
+Type=oneshot
+Slice=recoup.slice
+DynamicUser=yes
+StateDirectory=recoup
+WorkingDirectory=/var/lib/recoup
+Environment=PYTHONUNBUFFERED=1
+Environment=OMP_NUM_THREADS=2
+Environment=OPENBLAS_NUM_THREADS=2
+ExecStart=/opt/recoup/venv/bin/python /opt/recoup/dashboard/export_dashboard.py /var/lib/recoup/www/dashboard.json
+TimeoutStartSec=30m
+Restart=no
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+# Simulator needs no network. Drop this line when export_dashboard.py pulls from Bachs.
+PrivateNetwork=yes
+CapabilityBoundingSet=
+UMask=0022

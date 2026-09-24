@@ -1,0 +1,27 @@
+# Serve the operator console (index.html + dashboard.json) on the LAN.
+# Deliberately not exposed to the internet: reach it over your LAN or Tailscale.
+# Python's http.server is enough for one static page read by one person.
+[Unit]
+Description=recoup: operator console web server
+After=network.target
+
+[Service]
+Type=simple
+Slice=recoup.slice
+DynamicUser=yes
+StateDirectory=recoup
+WorkingDirectory=/var/lib/recoup/www
+ExecStart=/opt/recoup/venv/bin/python -m http.server 8080 --bind 0.0.0.0 --directory /var/lib/recoup/www
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

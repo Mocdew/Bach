@@ -1,0 +1,11 @@
+# Resource-control parent for every recoup unit. Retrain is CPU-heavy
+# (GBM + cross-fitting); cap it so it never starves the merchant's own
+# workloads on a shared box.
+[Unit]
+Description=recoup failed-payment recovery (slice)
+
+[Slice]
+CPUWeight=50
+MemoryHigh=6G
+MemoryMax=8G
+TasksMax=512

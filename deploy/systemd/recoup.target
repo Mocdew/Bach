@@ -1,0 +1,7 @@
+# One handle for the whole thing: `systemctl enable --now recoup.target`.
+[Unit]
+Description=recoup failed-payment recovery
+Wants=recoup-retrain.timer recoup-plan.timer recoup-gate.timer recoup-dashboard.timer recoup-web.service
+
+[Install]
+WantedBy=multi-user.target

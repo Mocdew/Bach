@@ -1,0 +1,20 @@
+# Layer 3: cross-fitted off-policy evaluation of the planner against the
+# incumbent ladder on the *logged* decisions + propensities, then
+# deployment_gate(). Writes {"decision": "HOLD"|"SWITCH", ...} which
+# recoup-plan reads on its next run. HOLD is the expected answer until the
+# exploration log has covered the delays the planner wants; see README
+# "Why the system still says don't switch yet".
+[Unit]
+Description=recoup: off-policy evaluation and deployment gate
+After=network-online.target
+Wants=network-online.target
+After=recoup-retrain.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/recoup/venv/bin/recoup-ops gate \
+    --model ${RECOUP_STATE}/models/current \
+    --audit ${RECOUP_LOG}/decisions \
+    --out   ${RECOUP_STATE}/gate/decision.json
+TimeoutStartSec=1h
+Restart=no

@@ -1,0 +1,14 @@
+[Unit]
+Description=recoup: hourly schedule planning
+
+[Timer]
+# Candidate delays are on the order of hours-to-days; hourly granularity is
+# finer than the planner's grid, so nothing is lost by batching.
+OnCalendar=hourly
+RandomizedDelaySec=5m
+AccuracySec=1m
+Persistent=yes
+Unit=recoup-plan.service
+
+[Install]
+WantedBy=timers.target

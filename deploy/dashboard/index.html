@@ -1,0 +1,385 @@
+<title>Recoup Dunning Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eceff4; --line:#d9dfe7; --line-2:#c3cbd6;
+  --ink:#141a22; --ink-2:#56606e; --ink-3:#8791a0;
+  --accent:#2a78d6; --accent-ink:#1d5fb0; --accent-soft:#e3eefb;
+  --incumbent:#eb6834; --incumbent-soft:#fdeae1;
+  --hold:#9a5b00; --hold-bg:#fff3df; --hold-line:#e8b866;
+  --go:#1f7a3a; --go-bg:#e4f4e8; --go-line:#8fcc9f;
+  --crit:#b3261e;
+  --grid:#e6eaf0;
+  --shadow:0 1px 2px rgba(20,26,34,.06),0 4px 14px rgba(20,26,34,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111418; --surface:#181c22; --surface-2:#1f242c; --line:#2a313b; --line-2:#3a434f;
+    --ink:#eef1f5; --ink-2:#aab3c0; --ink-3:#727d8c;
+    --accent:#3987e5; --accent-ink:#7db3f2; --accent-soft:#1b2c44;
+    --incumbent:#d95926; --incumbent-soft:#3a2418;
+    --hold:#f0b45a; --hold-bg:#2c2110; --hold-line:#6b4d15;
+    --go:#6ccf8a; --go-bg:#12281a; --go-line:#25553a;
+    --crit:#f0756c;
+    --grid:#232932;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111418; --surface:#181c22; --surface-2:#1f242c; --line:#2a313b; --line-2:#3a434f;
+  --ink:#eef1f5; --ink-2:#aab3c0; --ink-3:#727d8c;
+  --accent:#3987e5; --accent-ink:#7db3f2; --accent-soft:#1b2c44;
+  --incumbent:#d95926; --incumbent-soft:#3a2418;
+  --hold:#f0b45a; --hold-bg:#2c2110; --hold-line:#6b4d15;
+  --go:#6ccf8a; --go-bg:#12281a; --go-line:#25553a;
+  --crit:#f0756c;
+  --grid:#232932;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;padding-block:0 48px;padding-inline:clamp(16px,3vw,36px)}
+.mono{font-family:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink)}
+h1,h2,h3{margin:0;text-wrap:balance}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px;padding-block:20px 14px;border-bottom:1px solid var(--line)}
+.top h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
+.top .merchant{color:var(--ink-2)}
+.top .meta{margin-left:auto;display:flex;gap:18px;color:var(--ink-3);font-size:12px}
+.top .meta b{color:var(--ink-2);font-weight:500}
+.sim{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:2px 8px;border:1px dashed var(--line-2);border-radius:999px;color:var(--ink-2)}
+
+/* gate banner */
+.gate{margin-top:20px;display:grid;grid-template-columns:auto 1fr auto;gap:16px 24px;align-items:center;padding:18px 22px;border-radius:10px;border:1px solid var(--hold-line);background:var(--hold-bg)}
+.gate.go{border-color:var(--go-line);background:var(--go-bg)}
+.gate .verdict{display:flex;align-items:center;gap:12px}
+.gate .pill{font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:22px;letter-spacing:.04em;padding:6px 14px;border-radius:6px;color:var(--hold-bg);background:var(--hold)}
+.gate.go .pill{background:var(--go);color:var(--go-bg)}
+.gate .why{color:var(--ink);max-width:62ch}
+.gate .why strong{font-weight:600}
+.gate .why small{display:block;color:var(--ink-2);margin-top:4px}
+.gate .ci{display:grid;grid-template-columns:auto auto;gap:2px 14px;font-size:12px;color:var(--ink-2);align-self:center}
+.gate .ci .v{font-family:"IBM Plex Mono",monospace;color:var(--ink);text-align:right}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile .big{font-family:"IBM Plex Mono",monospace;font-size:28px;line-height:1.1;font-weight:500;letter-spacing:-.01em}
+.tile .big small{font-size:14px;color:var(--ink-2);font-weight:400;margin-left:6px}
+.tile .sub{font-size:12px;color:var(--ink-2)}
+.tile .sub b{color:var(--ink);font-weight:500}
+.delta{color:var(--accent-ink)}
+.meter{height:6px;border-radius:3px;background:var(--surface-2);position:relative;overflow:hidden;margin-top:2px}
+.meter>i{position:absolute;inset:0 auto 0 0;background:var(--hold);border-radius:3px}
+.meter>b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-2)}
+.tile .spark{height:34px;margin-top:2px}
+
+/* panels */
+.row{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-top:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px 12px;min-width:0}
+.panel header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:8px}
+.panel h2{font-size:14px;font-weight:600}
+.panel header p{margin:0;color:var(--ink-2);font-size:12px;flex-basis:100%}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2);margin-left:auto}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:11px;fill:var(--ink-2)}
+.chart .tick{stroke:var(--grid)}
+.chart .axis{stroke:var(--line-2)}
+.chart .lbl{fill:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:10.5px}
+.chart .hit{fill:transparent}
+.chart .hit:hover+rect,.chart g.bar:hover rect.mark{filter:brightness(.9)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;padding:6px 9px;border-radius:6px;box-shadow:var(--shadow);white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));opacity:0;transition:opacity .08s}
+.tip.on{opacity:1}
+.tip .k{opacity:.7}
+.note{font-size:12px;color:var(--ink-2);margin:8px 0 0;max-width:70ch}
+.note b{color:var(--ink);font-weight:500}
+
+/* table */
+.tbl{margin-top:12px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.filters .eyebrow{margin-right:6px}
+.chip{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:focus-visible,.rowbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scroller{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+th.r,td.r{text-align:right}
+tr.inv{cursor:pointer}
+tr.inv:hover td{background:var(--surface-2)}
+tr.detail td{background:var(--surface-2);white-space:normal;color:var(--ink-2);font-size:12.5px;padding:10px 14px 12px}
+tr.detail .mono{color:var(--ink)}
+.act{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:2px 8px;border-radius:4px;font-weight:500}
+.act.retry{background:var(--accent-soft);color:var(--accent-ink)}
+.act.route{background:var(--incumbent-soft);color:var(--incumbent)}
+.act.explore{background:var(--hold-bg);color:var(--hold)}
+.sched{display:inline-block;width:150px;height:14px;vertical-align:middle}
+.sched line{stroke:var(--line-2)}
+.sched circle{fill:var(--accent)}
+.sched circle.first{fill:var(--ink)}
+.rsn{color:var(--ink-2)}
+.id{color:var(--ink-3)}
+.count{color:var(--ink-3);font-size:12px;margin-left:auto}
+.foot{margin-top:28px;font-size:12px;color:var(--ink-3);max-width:80ch}
+
+@media (max-width:900px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row{grid-template-columns:1fr}
+  .gate{grid-template-columns:1fr}
+  .top .meta{margin-left:0;flex-basis:100%}
+}
+@media (prefers-reduced-motion:reduce){.tip{transition:none}}
+</style>
+
+<div class="top">
+  <h1>Recoup Dunning Console</h1>
+  <span class="merchant">merchant <span class="mono">acct_7f3a</span></span>
+  <span class="sim" title="Numbers come from the recoup simulator standing in for the Bachs audit log">simulated data · n=6000, seed 5</span>
+  <div class="meta">
+    <span>gate checked <b id="m-gate"></b></span>
+    <span>model fitted <b id="m-fit"></b></span>
+    <span>plan run <b id="m-plan"></b></span>
+  </div>
+</div>
+
+<section class="gate" id="gate" aria-live="polite">
+  <div class="verdict"><span class="pill" id="g-pill">HOLD</span></div>
+  <div class="why" id="g-why"></div>
+  <div class="ci" id="g-ci"></div>
+</section>
+
+<section class="tiles">
+  <div class="tile">
+    <span class="eyebrow">Recovered per failed invoice · planned vs ladder</span>
+    <div class="big num" id="t-val"></div>
+    <div class="sub" id="t-val-sub"></div>
+  </div>
+  <div class="tile">
+    <span class="eyebrow">Evidence the gate can use</span>
+    <div class="big num" id="t-ess"></div>
+    <div class="meter" id="t-ess-meter"><i></i><b></b></div>
+    <div class="sub" id="t-ess-sub"></div>
+  </div>
+  <div class="tile">
+    <span class="eyebrow">Model · cure-hazard, refit nightly</span>
+    <div class="big num" id="t-model"></div>
+    <div class="sub" id="t-model-sub"></div>
+  </div>
+  <div class="tile">
+    <span class="eyebrow">Open failed invoices · this plan run</span>
+    <div class="big num" id="t-open"></div>
+    <div class="sub" id="t-open-sub"></div>
+  </div>
+</section>
+
+<section class="row">
+  <div class="panel">
+    <header>
+      <h2>Where the log retried vs where the planner wants to</h2>
+      <div class="legend"><span><i style="background:var(--incumbent)"></i>logged first attempts</span><span><i style="background:var(--accent)"></i>planner's first attempt</span></div>
+      <p>Share of first retries by delay bucket after the failure. The gate stays on HOLD until the orange bars cover the blue ones.</p>
+    </header>
+    <div class="chart" id="c-cov"></div>
+    <p class="note" id="c-cov-note"></p>
+  </div>
+  <div class="panel">
+    <header>
+      <h2>What the ladder actually recovered</h2>
+      <div class="legend"><span><i style="background:var(--incumbent)"></i>fixed 24/72/168h ladder</span></div>
+      <p>Realised net recovery per failed invoice, first attempt, by week of failure. Amount recovered minus fees, disputes and discounting.</p>
+    </header>
+    <div class="chart" id="c-week"></div>
+    <p class="note" id="c-week-note"></p>
+  </div>
+</section>
+
+<section class="panel tbl">
+  <header>
+    <h2>Open failed invoices and their planned schedule</h2>
+    <span class="count" id="tbl-count"></span>
+    <p>Click a row for the planner's reasoning. Timeline spans 0–336h; the black dot is the next attempt. Propensity is the probability the exploration policy picks this delay — it is logged so next week's gate can use tonight's decisions.</p>
+  </header>
+  <div class="filters" id="filters"></div>
+  <div class="scroller">
+    <table>
+      <thead><tr>
+        <th>Invoice</th><th>Decline</th><th>Rail · market</th><th class="r">Amount</th><th>Action</th><th class="r">Next</th><th>Schedule</th><th class="r">P(gone)</th><th class="r">P(success)</th><th class="r">EV</th><th class="r">Prop.</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<p class="foot">Every figure on this page comes from the recoup simulator, not a live merchant. The layout mirrors what the systemd jobs write: <span class="mono">gate/decision.json</span> (banner), <span class="mono">models/current</span> (model tile), and the <span class="mono">decisions/*.parquet</span> audit log (table, coverage chart). Recovered-per-invoice for the planner is the oracle value in simulation; in production it is the gate's doubly-robust estimate and carries the interval shown in the banner.</p>
+
+<script id="data" type="application/json">{"__placeholder__":true}</script>
+<script type="module">
+// Served from the laptop: read dashboard.json written by recoup-dashboard.service.
+// Opened as a file or as the published artifact: fall back to the embedded copy.
+const embedded = JSON.parse(document.getElementById('data').textContent);
+const $ = s => document.querySelector(s);
+let D = embedded;
+try {
+  if (location.protocol.startsWith('http')) {
+    const r = await fetch('dashboard.json', {cache:'no-store'});
+    if (r.ok) D = await r.json();
+  }
+} catch (e) { /* keep embedded */ }
+if (D !== embedded) $('.sim').textContent = 'live · ' + D.source;
+if (!D.gate) {
+  document.body.innerHTML = '<p style="padding:24px;max-width:60ch;font:14px/1.5 system-ui">No <code>dashboard.json</code> next to this page yet. It is written by <code>recoup-dashboard.service</code>; run <code>sudo systemctl start recoup-dashboard.service</code> and reload.</p>';
+  throw new Error('no dashboard data');
+}
+const usd = v => (v<0?'−':'') + '$' + Math.abs(v).toFixed(2);
+const pct = v => (v*100).toFixed(0)+'%';
+const fmtT = iso => { const d=new Date(iso); return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); };
+
+// ---- header meta
+$('#m-gate').textContent = fmtT(D.generated_at);
+$('#m-fit').textContent = fmtT(D.model.fitted_at);
+$('#m-plan').textContent = fmtT(new Date(new Date(D.generated_at).getTime()+22*60000).toISOString());
+
+// ---- gate banner
+const g = D.gate;
+const gate = $('#gate');
+if (g.deploy) { gate.classList.add('go'); $('#g-pill').textContent='SWITCH'; }
+const essShort = g.ess < g.min_ess;
+$('#g-why').innerHTML = g.deploy
+  ? `<strong>Safe to switch the planner on.</strong> The improvement over the ladder is positive across the whole bootstrap interval and the exploration log covers the delays it wants.`
+  : `<strong>Keep the ladder in charge; keep exploring.</strong> ${essShort
+      ? `Only <span class="mono">${g.ess.toFixed(0)}</span> of ${g.n_logged.toLocaleString()} logged retries are informative about the planner's choices (needs ${g.min_ess.toFixed(0)}). The point estimate is favourable, but it rests on delays the old ladder almost never tried.`
+      : `The confidence interval on the improvement includes zero.`}<small>This is the expected verdict for the first weeks after enabling exploration. Nothing to fix — the log is filling in.</small>`;
+$('#g-ci').innerHTML = `
+  <span>planner, DR estimate</span><span class="v">${usd(g.dr_planned)}</span>
+  <span>ladder, DR estimate</span><span class="v">${usd(g.dr_incumbent)}</span>
+  <span>difference · 95% CI</span><span class="v">${usd(g.delta)} <span style="color:var(--ink-2)">[${usd(g.lo)}, ${usd(g.hi)}]</span></span>
+  <span>effective sample size</span><span class="v">${g.ess.toFixed(0)} / ${g.min_ess.toFixed(0)}</span>`;
+
+// ---- tiles
+const v = D.value;
+$('#t-val').innerHTML = `${usd(v.planned)}<small>vs ${usd(v.ladder)}</small>`;
+$('#t-val-sub').innerHTML = `<b class="delta">+${pct(v.lift)}</b> over the full 4-attempt window, simulator ground truth. Half of the gain is from planning the sequence, not the model.`;
+$('#t-ess').innerHTML = `${g.ess.toFixed(0)}<small>of ${g.min_ess.toFixed(0)} needed</small>`;
+const em = $('#t-ess-meter'); em.querySelector('i').style.width = Math.min(100, 100*g.ess/g.min_ess/1.5)+'%'; em.querySelector('b').style.left = (100/1.5)+'%';
+$('#t-ess-sub').innerHTML = `Effective sample size of the ${g.n_logged.toLocaleString()} logged first attempts, reweighted to the planner. Grows only as exploration lands in uncovered buckets.`;
+const m = D.model;
+$('#t-model').innerHTML = `${m.pr_auc.toFixed(2)}<small>PR-AUC</small>`;
+$('#t-model-sub').innerHTML = `ROC ${m.roc_auc.toFixed(2)} · ECE ${m.ece.toFixed(3)} · ${m.n_train.toLocaleString()} attempts in training. Model P(gone) <b>${pct(m.p_gone_model)}</b> vs ${pct(m.p_gone_true)} churned, per invoice${m.churn_train!=null ? ` — churn prevalence ran ${pct(m.churn_train)} in the training window to ${pct(m.churn_test)} in the test one, so most of that gap is drift, not miscalibration` : ''}.`;
+const rows = D.open_invoices;
+const nRetry = rows.filter(r=>r.action==='retry').length, nRoute = rows.length-nRetry, nExp = rows.filter(r=>r.rationale.includes('exploration')).length;
+$('#t-open').innerHTML = `${rows.length}<small>in this sample</small>`;
+$('#t-open-sub').innerHTML = `<b>${nRetry}</b> scheduled for retry, <b>${nRoute}</b> routed to update payment method, <b>${nExp}</b> exploring off the planner's best guess. Test period holds ${D.counts.retryable.toLocaleString()} retryable and ${D.counts.hard} hard declines.`;
+
+// ---- tooltip helper
+function tipFor(host){ const t=document.createElement('div'); t.className='tip'; host.appendChild(t); return t; }
+function showTip(t, host, x, y, html){ const r=host.getBoundingClientRect(); t.innerHTML=html; t.style.left=x+'px'; t.style.top=y+'px'; t.classList.add('on'); }
+
+// ---- coverage chart (grouped bars)
+(function(){
+  const host=$('#c-cov'), c=D.coverage, n=c.labels.length;
+  const W=640,H=250,L=36,R=8,T=14,B=34, iw=W-L-R, ih=H-T-B;
+  const maxv=Math.max(...c.log,...c.planned), ymax=Math.ceil(maxv*10)/10;
+  const y=val=>T+ih-(val/ymax)*ih, gw=iw/n, bw=Math.min(22,(gw-10)/2), gap=2;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Share of first retries by delay bucket, logged versus planned">`;
+  for(let k=0;k<=4;k++){ const val=ymax*k/4, yy=y(val); s+=`<line class="tick" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${(val*100).toFixed(0)}%</text>`; }
+  for(let i=0;i<n;i++){
+    const cx=L+gw*i+gw/2, isLad=c.ladder_buckets.includes(i);
+    const xa=cx-bw-gap/2, xb=cx+gap/2;
+    const ya=y(c.log[i]), yb=y(c.planned[i]);
+    if(isLad) s+=`<rect x="${L+gw*i+2}" y="${T}" width="${gw-4}" height="${ih}" fill="var(--incumbent-soft)" opacity=".55"/>`;
+    s+=`<g class="bar" data-i="${i}">
+      <rect class="mark" x="${xa}" y="${ya}" width="${bw}" height="${Math.max(0,T+ih-ya)}" fill="var(--incumbent)" rx="3" ry="3"/>
+      <rect class="mark" x="${xb}" y="${yb}" width="${bw}" height="${Math.max(0,T+ih-yb)}" fill="var(--accent)" rx="3" ry="3"/>
+      <rect class="hit" x="${L+gw*i}" y="${T}" width="${gw}" height="${ih}"/>
+      ${c.log[i]>0.2?`<text class="lbl" x="${xa+bw/2}" y="${ya-5}" text-anchor="middle">${pct(c.log[i])}</text>`:''}
+      ${c.planned[i]>0.2?`<text class="lbl" x="${xb+bw/2}" y="${yb-5}" text-anchor="middle">${pct(c.planned[i])}</text>`:''}
+    </g>`;
+    s+=`<text x="${cx}" y="${H-B+16}" text-anchor="middle">${c.labels[i]}</text>`;
+    if(isLad) s+=`<text x="${cx}" y="${H-B+29}" text-anchor="middle" style="fill:var(--incumbent);font-size:10px">ladder</text>`;
+  }
+  s+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${T+ih}" y2="${T+ih}"/></svg>`;
+  host.innerHTML=s; const tip=tipFor(host);
+  host.querySelectorAll('g.bar').forEach(gel=>{
+    gel.addEventListener('mousemove',e=>{ const i=+gel.dataset.i; const hr=host.getBoundingClientRect();
+      showTip(tip,host,e.clientX-hr.left,e.clientY-hr.top,`<span class="k">${c.labels[i]} after failure</span><br>logged ${pct(c.log[i])} · planner ${pct(c.planned[i])}`); });
+    gel.addEventListener('mouseleave',()=>tip.classList.remove('on'));
+  });
+  const lg=c.log, pl=c.planned; const worst=pl.map((p,i)=>({i,r:p/Math.max(lg[i],1e-6)})).sort((a,b)=>b.r-a.r)[0];
+  $('#c-cov-note').innerHTML=`<b>${pct(lg[3])}</b> of logged first retries sit in the ladder's 24–48h bucket. The planner puts <b>${pct(pl[worst.i])}</b> of its mass at ${c.labels[worst.i]} — mostly infrastructure declines it wants to retry within hours — where the log has ${pct(lg[worst.i])}. That gap is the whole reason for HOLD.`;
+})();
+
+// ---- weekly line
+(function(){
+  const host=$('#c-week'), w=D.weekly, n=w.length;
+  const W=420,H=250,L=36,R=12,T=14,B=30, iw=W-L-R, ih=H-T-B;
+  const ymax=Math.ceil(Math.max(...w.map(d=>d.recovered))/2)*2;
+  const x=i=>L+iw*i/(n-1), y=val=>T+ih-(val/ymax)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly realised recovery per failed invoice under the ladder">`;
+  for(let k=0;k<=4;k++){ const val=ymax*k/4, yy=y(val); s+=`<line class="tick" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-6}" y="${yy+4}" text-anchor="end">$${val.toFixed(0)}</text>`; }
+  const pts=w.map((d,i)=>`${x(i)},${y(d.recovered)}`).join(' ');
+  s+=`<polygon points="${x(0)},${T+ih} ${pts} ${x(n-1)},${T+ih}" fill="var(--incumbent)" opacity=".10"/>`;
+  s+=`<polyline points="${pts}" fill="none" stroke="var(--incumbent)" stroke-width="2" stroke-linejoin="round"/>`;
+  const mean=w.reduce((a,d)=>a+d.recovered*d.n,0)/w.reduce((a,d)=>a+d.n,0);
+  s+=`<line x1="${L}" x2="${W-R}" y1="${y(mean)}" y2="${y(mean)}" stroke="var(--ink-3)" stroke-dasharray="3 4"/><text x="${W-R}" y="${y(mean)-5}" text-anchor="end">mean ${usd(mean)}</text>`;
+  w.forEach((d,i)=>{ s+=`<circle cx="${x(i)}" cy="${y(d.recovered)}" r="${i===n-1?5:3.5}" fill="var(--incumbent)" stroke="var(--surface)" stroke-width="2"/>`; if(i%2===0||i===n-1) s+=`<text x="${x(i)}" y="${H-B+16}" text-anchor="middle">wk ${d.week+1}</text>`; });
+  s+=`<text class="lbl" x="${x(n-1)}" y="${y(w[n-1].recovered)-10}" text-anchor="end">${usd(w[n-1].recovered)}</text>`;
+  s+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${T+ih}" y2="${T+ih}"/>`;
+  s+=`<line id="xh" x1="0" x2="0" y1="${T}" y2="${T+ih}" stroke="var(--ink-3)" opacity="0"/><rect class="hit" x="${L}" y="${T}" width="${iw}" height="${ih}"/></svg>`;
+  host.innerHTML=s; const tip=tipFor(host), xh=host.querySelector('#xh'), svg=host.querySelector('svg');
+  svg.addEventListener('mousemove',e=>{ const hr=host.getBoundingClientRect(); const px=(e.clientX-hr.left)/hr.width*W; let i=Math.round((px-L)/iw*(n-1)); i=Math.max(0,Math.min(n-1,i));
+    xh.setAttribute('x1',x(i)); xh.setAttribute('x2',x(i)); xh.setAttribute('opacity','.6');
+    showTip(tip,host,x(i)/W*hr.width,y(w[i].recovered)/H*hr.height,`<span class="k">week ${w[i].week+1} · ${w[i].n} invoices</span><br>${usd(w[i].recovered)} per failed invoice`); });
+  svg.addEventListener('mouseleave',()=>{ tip.classList.remove('on'); xh.setAttribute('opacity','0'); });
+  const lo=Math.min(...w.map(d=>d.recovered)), hi=Math.max(...w.map(d=>d.recovered));
+  $('#c-week-note').innerHTML=`Swings from <b>${usd(lo)}</b> to <b>${usd(hi)}</b> week to week at ~150 invoices each — that noise is why the gate uses a bootstrap interval rather than a point comparison.`;
+})();
+
+// ---- table
+const filters={action:'all', rail:'all'};
+const rails=[...new Set(rows.map(r=>r.rail))];
+const fdefs=[
+  {key:'action', opts:[['all','All actions'],['retry','Retry'],['route_to_update_method','Route to new method'],['explore','Exploring']]},
+  {key:'rail', opts:[['all','All rails'],...rails.map(r=>[r,r.replace('_',' ')])]},
+];
+const fh=$('#filters');
+fdefs.forEach((f,fi)=>{ const lab=document.createElement('span'); lab.className='eyebrow'; lab.textContent=f.key; fh.appendChild(lab);
+  f.opts.forEach(([val,txt])=>{ const b=document.createElement('button'); b.className='chip'; b.type='button'; b.id=`f-${f.key}-${val}`; b.textContent=txt; b.setAttribute('aria-pressed', filters[f.key]===val);
+    b.addEventListener('click',()=>{ filters[f.key]=val; fh.querySelectorAll(`[id^="f-${f.key}-"]`).forEach(x=>x.setAttribute('aria-pressed', x===b)); render(); }); fh.appendChild(b); });
+  if(fi<fdefs.length-1){ const sp=document.createElement('span'); sp.style.width='10px'; fh.appendChild(sp); }
+});
+function schedSvg(s){ if(!s.length) return '<span class="id">—</span>'; const W=150; const x=h=>4+(W-8)*h/336;
+  let o=`<svg class="sched" viewBox="0 0 ${W} 14" aria-label="schedule ${s.join(', ')} hours"><line x1="4" x2="${W-4}" y1="7" y2="7"/>`;
+  [24,72,168].forEach(h=>o+=`<line x1="${x(h)}" x2="${x(h)}" y1="3" y2="11" stroke="var(--incumbent)" opacity=".5"/>`);
+  s.forEach((h,i)=>o+=`<circle class="${i?'':'first'}" cx="${x(h)}" cy="7" r="3.5"/>`); return o+'</svg>'; }
+function render(){
+  const tb=$('#tbody'); tb.innerHTML='';
+  const list=rows.filter(r=> (filters.action==='all' || (filters.action==='explore' ? r.rationale.includes('exploration') : r.action===filters.action)) && (filters.rail==='all'||r.rail===filters.rail))
+    .sort((a,b)=>(b.ev||0)-(a.ev||0));
+  $('#tbl-count').textContent=`${list.length} of ${rows.length}`;
+  list.forEach(r=>{
+    const exp=r.rationale.includes('exploration');
+    const act = r.action==='retry' ? (exp?`<span class="act explore">retry · exploring</span>`:`<span class="act retry">retry</span>`) : `<span class="act route">route to new method</span>`;
+    const tr=document.createElement('tr'); tr.className='inv'; tr.tabIndex=0; tr.setAttribute('aria-expanded','false');
+    tr.innerHTML=`<td class="mono id">${r.id.replace('inv_','#')}</td><td>${r.reason.replace(/_/g,' ')}${r.advice!=='none'?` <span class="rsn">· advice ${r.advice.replace(/_/g,' ')}</span>`:''}</td><td>${r.rail.replace('_',' ')} <span class="rsn">· ${r.market}</span></td><td class="r mono">${usd(r.amount)}</td><td>${act}</td><td class="r mono">${r.delay==null?'—':r.delay.toFixed(0)+'h'}</td><td>${schedSvg(r.schedule)}</td><td class="r mono">${r.p_gone==null?'—':r.p_gone.toFixed(2)}</td><td class="r mono">${r.p_success==null?'—':r.p_success.toFixed(2)}</td><td class="r mono">${usd(r.ev)}</td><td class="r mono">${r.propensity==null?'—':r.propensity.toFixed(2)}</td>`;
+    const det=document.createElement('tr'); det.className='detail'; det.hidden=true;
+    const why = r.action!=='retry' ? `Hard decline (${r.reason.replace(/_/g,' ')}): the issuer says a retry will not clear. Routed to the update-payment-method flow; never retried. A wrong soft/hard mapping here costs a network fine, so unmapped reasons fail closed.`
+      : exp ? `Thompson draw from the posterior chose ${r.delay.toFixed(0)}h instead of the planner's best schedule. Propensity ${r.propensity.toFixed(2)} is logged with the outcome so the gate can credit this bucket next week. Full planned schedule if this attempt fails: <span class="mono">${r.schedule.join('h → ')}h</span>.`
+      : `${r.rationale.replace('best of','Best of').replace('P(gone)','P(gone)')}. Planner enumerated every increasing schedule of up to 4 delays from the candidate grid and picked <span class="mono">${r.schedule.join('h → ')}h</span> for the highest expected net recovery (${usd(r.ev)} on ${usd(r.amount)}) after attempt fees, ${r.rail==='mobile_money'?'the mobile-money annoyance cost, ':''}dispute risk and cash-timing discount.`;
+    det.innerHTML=`<td colspan="11">${why}</td>`;
+    tr.addEventListener('click',()=>{ det.hidden=!det.hidden; tr.setAttribute('aria-expanded', String(!det.hidden)); });
+    tr.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tr.click(); } });
+    tb.appendChild(tr); tb.appendChild(det);
+  });
+}
+render();
+</script>

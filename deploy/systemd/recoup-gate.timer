@@ -1,0 +1,13 @@
+[Unit]
+Description=recoup: weekly deployment-gate check
+
+[Timer]
+# Weekly, after Sunday's retrain. The gate needs weeks of exploration
+# coverage before it can move; running it more often just re-prints HOLD.
+OnCalendar=Sun *-*-* 05:00:00
+RandomizedDelaySec=30m
+Persistent=yes
+Unit=recoup-gate.service
+
+[Install]
+WantedBy=timers.target

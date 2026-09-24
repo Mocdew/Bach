@@ -1,0 +1,12 @@
+[Unit]
+Description=recoup: nightly model refit
+
+[Timer]
+# 03:15 local, after the day's settlement batch has landed in Bachs.
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=20m
+Persistent=yes
+Unit=recoup-retrain.service
+
+[Install]
+WantedBy=timers.target

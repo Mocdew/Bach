@@ -1,0 +1,11 @@
+[Unit]
+Description=recoup: rebuild dashboard data nightly after the retrain
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=10m
+Persistent=yes
+Unit=recoup-dashboard.service
+
+[Install]
+WantedBy=timers.target

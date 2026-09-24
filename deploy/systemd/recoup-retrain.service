@@ -1,0 +1,21 @@
+# Layer 1: refit the cure-hazard model, dispute table and support map on
+# the merchant's history. Writes an atomically-swapped model bundle to
+# /var/lib/recoup/models/current -> <timestamp>/ so a plan run never sees a
+# half-written model.
+[Unit]
+Description=recoup: refit cure-hazard model on latest payment history
+Documentation=file:///opt/recoup/README.md
+After=network-online.target
+Wants=network-online.target
+# Never retrain while a plan run is mid-flight against the model it would
+# replace. The symlink swap is atomic, but keep them serialized anyway.
+Conflicts=recoup-plan.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/recoup/venv/bin/recoup-ops retrain --out ${RECOUP_STATE}/models
+TimeoutStartSec=2h
+# Retrain failing is not an emergency: the previous model stays current.
+# Let the timer try again tomorrow rather than hammering the API.
+Restart=no
+OOMPolicy=kill
