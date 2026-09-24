@@ -1,0 +1,8 @@
+# Unit files, shell scripts and the dashboard the Linux server reads must keep
+# LF endings. systemd does not strip a trailing CR, so a CRLF checkout turns
+# "ExecStart=/opt/recoup/venv/bin/python" into a path with an invisible \r on
+# the end and the unit fails to start.
+deploy/systemd/** text eol=lf
+deploy/**.md      text eol=lf
+deploy/dashboard/** text eol=lf
+*.py              text eol=lf
