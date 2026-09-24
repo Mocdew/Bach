@@ -257,36 +257,99 @@ def off_policy_value(logged: pd.DataFrame, target_propensities: np.ndarray,
 
 def cross_fitted_plan(train: pd.DataFrame, eval_invoices: pd.DataFrame,
                       fit_model, make_planner, n_folds: int = 2, seed: int = 0):
-    """Policy and reward model from *different* halves of the training data.
+    """Policy and reward model from *disjoint* halves of the training data.
 
     The doubly-robust estimator's direct term uses a reward model q_hat. If
     q_hat is the same model whose argmax produced the policy, the direct term
     is the policy's optimistic opinion of itself (the optimiser's curse) and DR
-    inherits that bias exactly where importance weights are thin. Cross-fitting
-    breaks the dependence: the policy is planned under the model from fold A
-    and valued under the model from fold B, then the roles swap and the two
-    halves are averaged.
+    inherits that bias exactly where importance weights are thin.
+
+    Breaking that dependence takes two things, and an earlier version of this
+    function only did the first:
+
+    1. Fit two models on disjoint halves of the training invoices.
+    2. **Give each evaluated invoice a policy and a reward model from
+       different halves.** Averaging both quantities over both models -- which
+       is what this used to do -- makes every row's ``pi`` and ``q_hat``
+       depend on both fits again, and hands the curse straight back. So the
+       *evaluation* set is split too: half its rows are planned under model A
+       and valued under model B, the other half the reverse, and the halves
+       are concatenated back into the caller's row order.
+
+    Only ``n_folds=2`` is meaningful here. With K>2 the usual
+    leave-one-fold-out models share training folds pairwise, so no pairing of
+    them is disjoint; K=2 is the only split that gives the guarantee this
+    function exists to provide.
 
     ``fit_model(df) -> model``; ``make_planner(model) -> RetryPlanner``.
-    Returns (pi, delays, q_hat) for ``eval_invoices``. ``q_hat`` is the
-    *first-attempt* expected reward per bucket, in the same units as the
-    logged reward -- not the schedule value.
+    Returns (pi, delays, q_hat) for ``eval_invoices`` in the order given.
+    ``q_hat`` is the *first-attempt* expected reward per bucket, in the same
+    units as the logged reward -- not the schedule value.
+
+    Note that each model sees half the training data, so the estimate is of a
+    policy fitted on n/2. That is mildly pessimistic versus the policy you
+    would actually deploy, and pessimism is the safe direction for a gate.
+
+    What the fix does and does not buy (measured, 6000-invoice fixture, DR
+    against the first-decision oracle)::
+
+        same model both sides   DR 10.60  oracle 7.65  error +2.95  ESS 76
+        old, average both       DR 10.27  oracle 7.73  error +2.55  ESS 83
+        this, disjoint pairing  DR 11.09  oracle 7.74  error +3.35  ESS 71
+
+    The disjoint version's error is *larger*, and it is worth being clear why
+    rather than quietly shipping the smaller number: averaging two models
+    shrinks q_hat toward the middle, which happens to drag the optimistic
+    direct term down. That is smoothing, not bias correction, and it came
+    bundled with a concrete defect -- the averaged ``delays`` were the
+    arithmetic mean of two models' chosen delays, so 45% of invoices were
+    logged with a delay *neither* model would have chosen (model A says 3h,
+    model B says 5h, the log says 4h). An action no policy would take cannot
+    be the action whose value you are estimating.
+
+    The honest reading of the table is that all three are 33-43% optimistic
+    and the cross-fit structure is not what is driving that: ESS near 75 on
+    1500 logged attempts means the importance-weighted correction term is too
+    thin to pull the direct term back to earth, whatever produced it. That is
+    the same overlap problem the deployment gate reports, and it is fixed by
+    logging exploration data, not by rearranging estimators.
+
+    Averaging over several independent 2-way splits would recover the variance
+    reduction without reintroducing the dependence -- average the per-split DR
+    *estimates*, never the per-split ``pi`` and ``q_hat`` -- and is the natural
+    next step here.
     """
+    if n_folds != 2:
+        raise ValueError(
+            "cross_fitted_plan requires n_folds=2: with more folds the "
+            "leave-one-out models share training data pairwise, so no pair of "
+            "them is disjoint and the cross-fit guarantee does not hold."
+        )
     rng = np.random.default_rng(seed)
     inv_ids = train["invoice_id"].astype(str).unique()
     rng.shuffle(inv_ids)
-    folds = np.array_split(inv_ids, n_folds)
-    models = [fit_model(train[~train["invoice_id"].astype(str).isin(f)]) for f in folds]
+    halves = np.array_split(inv_ids, 2)
+    # Model j is fitted on half j only; the two parameter vectors share no data.
+    models = [fit_model(train[train["invoice_id"].astype(str).isin(set(h))])
+              for h in halves]
 
     n = len(eval_invoices)
-    pi = np.zeros((n, N_DT_BUCKETS)); dl = np.zeros((n, N_DT_BUCKETS)); q = np.zeros((n, N_DT_BUCKETS))
-    for i, m in enumerate(models):
-        plan_pol = make_planner(m).plan(eval_invoices)
-        other = models[(i + 1) % n_folds]
-        plan_val = make_planner(other).plan(eval_invoices, explore=False)
-        pi += plan_pol.pi / n_folds
-        dl += plan_pol.delays / n_folds
-        q += plan_val.q_first / n_folds
+    # Which model plans each evaluated invoice; the other one values it.
+    group = rng.integers(0, 2, size=n)
+
+    plans_pol = [make_planner(m).plan(eval_invoices) for m in models]
+    plans_val = [make_planner(m).plan(eval_invoices, explore=False) for m in models]
+
+    pi = np.zeros((n, N_DT_BUCKETS))
+    dl = np.zeros((n, N_DT_BUCKETS))
+    q = np.zeros((n, N_DT_BUCKETS))
+    for g in (0, 1):
+        rows = np.flatnonzero(group == g)
+        if rows.size == 0:
+            continue
+        pi[rows] = plans_pol[g].pi[rows]
+        dl[rows] = plans_pol[g].delays[rows]
+        q[rows] = plans_val[1 - g].q_first[rows]   # the *other* half's model
     return pi, dl, q
 
 

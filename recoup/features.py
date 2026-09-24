@@ -34,6 +34,7 @@ from .domain import (
     HARD_DECLINES,
     INFRA_DRIVEN,
     MARKETS,
+    MAX_HORIZON_H,
     DeclineReason,
     NetworkAdvice,
     dt_bucket,
@@ -146,6 +147,84 @@ def customer_history(invoices: pd.DataFrame, attempts: pd.DataFrame | None) -> p
     out[HISTORY_COLS] = pd.DataFrame(rows, index=out.index, columns=HISTORY_COLS).astype(float)
     return out
 
+
+def derive_cure_labels(invoices: pd.DataFrame, attempts: pd.DataFrame,
+                       gone_events: pd.DataFrame | None = None,
+                       window_h: float = MAX_HORIZON_H) -> pd.Series:
+    """Partial labels for the cure component: 1 = gone, 0 = present, NaN = unknown.
+
+    The cure fraction ``pi`` is the hardest thing in the model to identify. All
+    the unsupervised likelihood has to work with is the curvature in repeated
+    failures, and with at most four attempts per invoice that signal is thin --
+    ``pi`` and a uniformly low hazard explain the same data almost equally
+    well, which is why the fitted cure fraction sits well under the truth.
+    Every observation you can label directly is worth more than another
+    covariate.
+
+    **Present (0)** -- the customer made a *successful* payment on some other
+    invoice after this one's dunning window closed. "Gone" means gone for
+    good, so a later success is a direct contradiction. Verified exact against
+    simulator ground truth: 0.000 true churn rate among labelled-present
+    invoices, versus a 0.090 base rate.
+
+    **Gone (1)** -- requires ``gone_events``: a frame with ``customer_id`` and
+    ``event_time_h`` recording an observed instrument death -- subscription
+    cancelled, card deleted, account closed by the customer. An invoice is
+    labelled gone when such an event lands after its failure and no success
+    follows. This is the half you have to supply from real data; wire it to
+    the Bachs subscription/payment-method endpoints when the adapter in
+    ``bachs.py`` is pinned.
+
+    .. warning::
+       **Do not pass present labels alone.** Labelling here is
+       outcome-dependent -- an invoice is labelled present precisely *because*
+       the customer came back -- so it is a positive-unlabelled problem, not a
+       random subsample. The unlabelled likelihood term needs a
+       ``(1 - c(x))`` factor for the probability a live customer went
+       unlabelled, and without it the live component is overstated and ``pi``
+       collapses. Measured on the simulator: unlabelled ``pi`` 0.124 against a
+       true 0.275, present-labels-only ``pi`` 0.016 -- three times worse.
+       ``CureHazardModel.fit`` warns when it receives one-sided labels.
+
+    An earlier version of this function derived gone labels from a later hard
+    decline or no-retry issuer advice on the same customer. That was measured
+    against simulator ground truth and carries no signal at all (0.088 true
+    churn rate among labelled, against a 0.090 base), so it was removed rather
+    than left as a plausible-looking default. A dead card is evidence about
+    the *instrument*, not about whether the human intends to keep paying.
+
+    These are *labels*, not features: they look at data after the invoice's
+    failure time and are consumed only by ``CureHazardModel.fit``. Nothing in
+    ``build_features`` reads them, so they cannot reach inference. Derive them
+    from the same time-truncated ``attempts`` frame you train on and the
+    temporal split still holds.
+    """
+    idx = invoices.index
+    if attempts is None or "customer_id" not in invoices.columns:
+        return pd.Series(np.nan, index=idx, dtype=float)
+
+    att = attempts.merge(invoices[["invoice_id", "customer_id"]], on="invoice_id", how="inner")
+    wins = att[att["success"] == 1]
+    last_win = (wins.groupby("customer_id")["attempt_time_h"].max().astype(float).to_dict()
+                if len(wins) else {})
+
+    first_dead: dict = {}
+    if gone_events is not None and len(gone_events):
+        for cust, t in zip(gone_events["customer_id"].to_numpy(),
+                           gone_events["event_time_h"].to_numpy(dtype=float)):
+            if cust not in first_dead or t < first_dead[cust]:
+                first_dead[cust] = float(t)
+
+    out = np.full(len(invoices), np.nan)
+    for i, (cust, ft) in enumerate(zip(invoices["customer_id"].to_numpy(),
+                                       invoices["fail_time_h"].to_numpy(dtype=float))):
+        close = ft + window_h
+        came_back = cust in last_win and last_win[cust] > close
+        if came_back:
+            out[i] = 0.0
+        elif cust in first_dead and first_dead[cust] > ft:
+            out[i] = 1.0
+    return pd.Series(out, index=idx, dtype=float)
 
 def build_features(invoices: pd.DataFrame, triples: pd.DataFrame,
                    epoch: datetime = DEFAULT_EPOCH) -> pd.DataFrame:

@@ -64,10 +64,24 @@ def main() -> None:
     rule("2. OUTCOME MODEL")
     y_te = test["success"].to_numpy()
     t = time.time(); cure = CureHazardModel().fit(train); t_fit = time.time() - t
-    pi_hat, _ = cure.predict_components(test)
-    truth_gone = test.merge(inv_te[["invoice_id", "_churned"]], on="invoice_id")["_churned"].mean()
     print(f"cure-hazard    {score_model(y_te, cure.predict_proba1(test))}   ({t_fit:.0f}s)")
-    print(f"               P(gone): model {pi_hat.mean():.3f}  vs  true churned share {truth_gone:.3f}")
+
+    # P(gone) is an *invoice*-level quantity, so compare it per invoice. Doing
+    # this over attempt rows -- which an earlier version did -- oversamples
+    # churned invoices, because a churned invoice never succeeds and so always
+    # spends its full attempt budget. That inflates the "true" share to 0.275
+    # against a 0.225 invoice-level rate and makes the model look worse than
+    # it is, for a reason no model could fix.
+    one = test.drop_duplicates("invoice_id")
+    pi_inv, _ = cure.predict_components(one)
+    truth_inv = inv_te.set_index("invoice_id").loc[one["invoice_id"], "_churned"].to_numpy()
+    print(f"               P(gone) per invoice: model {pi_inv.mean():.3f}  vs  true {truth_inv.mean():.3f}")
+    # The remaining gap is mostly drift, not miscalibration: churn is absorbing
+    # and onset is uniform over the horizon, so prevalence ramps through the
+    # simulated period and the test window is simply churnier than the window
+    # the model was fitted on. Print both so the two effects stay separable.
+    print(f"               churn prevalence: train {inv_tr['_churned'].mean():.3f} "
+          f"-> test {inv_te['_churned'].mean():.3f}  (non-stationary by construction)")
     print(f"gbm baseline   {score_model(y_te, GBMHazard().fit(train).predict_proba1(test))}")
     print(f"beta-binomial  {score_model(y_te, BetaBinomialHazard().fit(train).predict_proba1(test))}")
     print("\nNo payday_window feature: the model sees raw days-to-payday and has to learn the shape.")

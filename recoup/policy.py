@@ -40,7 +40,7 @@ and can be fitted on the disputes endpoint; nothing here imports the simulator.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 from typing import Callable, Literal, Protocol
 
@@ -134,10 +134,36 @@ class PolicyConfig:
     horizon: int = 4                   # attempts planned jointly; 1 = myopic
     candidates_per_bucket: int = 2
     # --- exploration ------------------------------------------------------
+    # Posterior draws used to build the first-action distribution. The logged
+    # propensity is *exact* either way -- the action is drawn from the
+    # distribution that gets logged -- so this is not an estimator-accuracy
+    # knob. What it controls is how faithfully that distribution approximates
+    # true Thompson sampling: at S=16 the frequency of each bucket carries a
+    # standard error near 0.12, so the policy is a coarse, jittery version of
+    # the one intended, and two invoices with identical features can get very
+    # different action distributions.
+    #
+    # Cost is linear in S and the batch planner is the expensive caller
+    # (~1.8s per draw at 1000 invoices), so the batch default stays low and
+    # the production path -- one invoice at a time -- uses
+    # ``n_propensity_samples`` instead. Measured on the benchmark fixture,
+    # re-planning one invoice eight times and taking the largest per-bucket
+    # standard deviation of its propensity vector:
+    #
+    #     S     sd      ms/decide   500 invoices
+    #     16    0.022      54        0.5 min
+    #     64    0.008     183        1.5 min
+    #     128   0.007     404        3.4 min
+    #     512   0.003    1291       10.8 min
+    #
+    # Returns flatten past ~128 while cost stays linear, so that is the
+    # production default: three times steadier than the batch setting, and
+    # comfortable inside an hourly job.
     n_posterior_samples: int = 16
+    n_propensity_samples: int = 128
     # Scale on posterior deviations. 1.0 = full Thompson sampling; smaller
-    # explores less. The Laplace posterior is conservative (wide), so 0.5 lands
-    # near a 15-20% exploration rate on the benchmark.
+    # explores less. The Laplace posterior is conservative (wide), so this
+    # lands near a 15-20% exploration rate on the benchmark.
     posterior_temperature: float = 0.35
     propensity_floor: float = 0.02
 
@@ -485,7 +511,29 @@ class RetryPolicy:
         self.cfg = cfg or PolicyConfig()
         self.rules = rules or NetworkRules()
         self.rng = rng or np.random.default_rng(0)
-        self.planner = RetryPlanner(model, self.cfg, self.rules, dispute_model, support, self.rng)
+        # One invoice per call, so the per-draw cost is milliseconds: take the
+        # faithful Thompson distribution rather than the batch planner's
+        # coarse one. This is the distribution that gets written to the audit
+        # log, and next quarter's gate reads it back as the logging policy.
+        self._decide_cfg = replace(self.cfg, n_posterior_samples=self.cfg.n_propensity_samples)
+        self.planner = RetryPlanner(model, self._decide_cfg, self.rules,
+                                    dispute_model, support, self.rng)
+        # Planners for shortened horizons (attempt_index > 0). Building one
+        # re-enumerates every candidate schedule, so cache by remaining depth.
+        self._shortened: dict[tuple[int, int], RetryPlanner] = {}
+
+    def _planner_for(self, attempt_index: int, cap: int) -> "RetryPlanner":
+        if attempt_index <= 0:
+            return self.planner
+        key = (attempt_index, cap)
+        if key not in self._shortened:
+            cfg = replace(self._decide_cfg,
+                          horizon=max(1, self.cfg.horizon - attempt_index),
+                          max_attempts=cap - attempt_index)
+            self._shortened[key] = RetryPlanner(
+                self.planner.model, cfg, self.rules, self.planner.dispute,
+                self.planner.support, self.rng)
+        return self._shortened[key]
 
     def decide(self, invoice_id: str, attempt_index: int = 0) -> Decision:
         inv = self.invoices.loc[[invoice_id]].reset_index(drop=True)
@@ -505,14 +553,7 @@ class RetryPolicy:
 
         # Remaining attempts shrink with attempt_index; shift the planner's
         # attempt index by re-labelling the invoice's history length.
-        planner = self.planner
-        if attempt_index > 0:
-            cfg = PolicyConfig(**{**self.cfg.__dict__, "horizon": max(1, self.cfg.horizon - attempt_index),
-                                  "max_attempts": cap - attempt_index})
-            planner = RetryPlanner(self.planner.model, cfg, self.rules, self.planner.dispute,
-                                   self.planner.support, self.rng)
-
-        plan = planner.plan(inv)
+        plan = self._planner_for(attempt_index, cap).plan(inv)
         if plan.pi[0].sum() <= 0:
             if plan.viable is not None and plan.viable[0].any():
                 return Decision("route_to_update_method", None, None, float(plan.p_first[0]),

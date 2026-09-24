@@ -8,14 +8,37 @@ import pandas as pd
 try:
     import pytest
 except ImportError:  # minimal stand-in so the bundled runner works offline
+    import re as _re
+    import warnings as _warnings
+    from contextlib import contextmanager
     from types import SimpleNamespace
-    pytest = SimpleNamespace(fixture=lambda **kw: (lambda f: f))
+
+    @contextmanager
+    def _warns(category, match=None):
+        with _warnings.catch_warnings(record=True) as caught:
+            _warnings.simplefilter("always")
+            yield caught
+        hits = [w for w in caught if issubclass(w.category, category)
+                and (match is None or _re.search(match, str(w.message)))]
+        assert hits, f"expected {category.__name__} matching {match!r}"
+
+    @contextmanager
+    def _raises(exc, match=None):
+        try:
+            yield
+        except exc as e:
+            assert match is None or _re.search(match, str(e)),                 f"{e!r} does not match {match!r}"
+        else:
+            raise AssertionError(f"expected {exc.__name__}")
+
+    pytest = SimpleNamespace(fixture=lambda **kw: (lambda f: f),
+                             warns=_warns, raises=_raises)
 
 from recoup import (
     CureHazardModel, NetworkRules, PolicyConfig, RetryPlanner, RetryPolicy, SimConfig,
     SupportMap, TableDisputeModel, Truth, build_features, customer_history,
     cross_fitted_plan, deployment_gate, fixed_ladder_policy, ladder_schedules,
-    logged_first_attempts, off_policy_value, oracle_policy_value,
+    derive_cure_labels, logged_first_attempts, off_policy_value, oracle_policy_value,
     oracle_schedule_value, simulate, temporal_split,
 )
 from recoup.bachs import DECLINE_CODE_MAP, map_decline_code
@@ -24,7 +47,7 @@ from recoup.domain import (
     NetworkAdvice, Rail, dt_bucket, is_retryable,
 )
 from recoup.evaluate import expected_calibration_error, score_model
-from recoup.models import BetaBinomialHazard, GBMHazard
+from recoup.models import CURE_LABEL, BetaBinomialHazard, GBMHazard
 from recoup.simulator import true_dispute_prob, true_success_prob
 
 LADDER = (24.0, 72.0, 168.0)
@@ -476,3 +499,178 @@ def test_gate_interval_brackets_the_point_estimate(sim):
     q = np.zeros((len(inv), N_DT_BUCKETS))
     g = deployment_gate(first, candidate, incumbent, q, cfg, min_ess=0, n_boot=200)
     assert g.lo <= g.delta <= g.hi
+
+
+# --- semi-supervised cure component ----------------------------------------
+
+
+def test_cure_labels_from_later_successes_are_exact(sim):
+    """A later success proves the customer was not gone. Churn is absorbing in
+    the simulator, so this label admits no exceptions -- if it ever does, the
+    derivation is looking at the wrong window."""
+    invoices, attempts = sim
+    lab = derive_cure_labels(invoices, attempts)
+    present = lab == 0.0
+    assert present.sum() > 100, "expected a usable number of present labels"
+    assert invoices.loc[present, "_churned"].mean() == 0.0
+
+
+def test_cure_labels_need_real_events_to_call_anyone_gone(sim):
+    """Without observed instrument-death events nothing is labelled gone. The
+    heuristic that used to fill this in -- a later hard decline on the same
+    customer -- measured at the base rate, i.e. pure noise, and was removed."""
+    invoices, attempts = sim
+    assert (derive_cure_labels(invoices, attempts) == 1.0).sum() == 0
+
+    events = invoices.groupby("customer_id")["fail_time_h"].max().reset_index()
+    events.columns = ["customer_id", "event_time_h"]
+    events["event_time_h"] += 1.0
+    lab = derive_cure_labels(invoices, attempts, gone_events=events)
+    assert (lab == 1.0).sum() > 0
+
+
+def test_known_gone_invoices_do_not_shape_the_hazard(fitted):
+    """w_live=0 must remove a known-gone invoice from the hazard likelihood.
+    If it does not, dead instruments drag the timing curve down."""
+    model, train, _, _ = fitted
+    recovered = train.groupby("invoice_id")["success"].max()
+    # Only a never-recovered invoice can honestly be labelled gone; labelling a
+    # recovered one is the contradiction the guard downgrades.
+    never = list(recovered[recovered == 0].index)
+    ever = list(recovered[recovered > 0].index)
+    lab = {i: 1.0 for i in never[: len(never) // 2]}
+    lab.update({i: 0.0 for i in never[len(never) // 2:] + ever})
+    labelled = train.copy()
+    labelled[CURE_LABEL] = labelled["invoice_id"].map(lab)
+    m = CureHazardModel().fit(labelled)
+    assert m.n_known_gone_ > 0 and m.n_known_live_ > 0
+    assert m.n_known_gone_ + m.n_known_live_ == len(lab)
+    assert m.n_known_gone_ == len(never) // 2
+    pi, h = m.predict_components(train)
+    assert np.all(np.isfinite(pi)) and np.all(np.isfinite(h))
+
+
+def test_contradictory_gone_label_is_refused_not_obeyed(fitted):
+    """known_gone=1 on a recovered invoice is a broken label. It must be
+    downgraded with a warning, not drive the likelihood to zero."""
+    model, train, _, _ = fitted
+    recovered = train.groupby("invoice_id")["success"].max()
+    rec_ids = set(recovered[recovered > 0].index[:20])
+    bad = train.copy()
+    bad[CURE_LABEL] = np.where(bad["invoice_id"].isin(rec_ids), 1.0, 0.0)
+    with pytest.warns(RuntimeWarning, match="were recovered"):
+        m = CureHazardModel().fit(bad)
+    assert m.n_known_gone_ == 0
+    assert np.all(np.isfinite(m.theta_))
+
+
+def test_one_sided_cure_labels_are_flagged(fitted):
+    """Present-only labels bias the cure fraction down hard (measured 0.124 ->
+    0.016 against a 0.225 truth), because labelling is outcome-dependent.
+    Silence here would ship that."""
+    model, train, _, _ = fitted
+    one_sided = train.copy()
+    one_sided[CURE_LABEL] = 0.0
+    with pytest.warns(RuntimeWarning, match="one-sided"):
+        CureHazardModel().fit(one_sided)
+
+
+def test_unlabelled_fit_is_unchanged(fitted):
+    """The semi-supervised path must be an exact no-op with no labels."""
+    model, train, _, _ = fitted
+    m = CureHazardModel().fit(train.assign(**{CURE_LABEL: np.nan}))
+    assert m.n_known_gone_ == 0 and m.n_known_live_ == 0
+    np.testing.assert_allclose(m.theta_, model.theta_, rtol=1e-6, atol=1e-8)
+
+
+# --- cross-fitting ---------------------------------------------------------
+
+
+def test_cross_fitting_refuses_more_than_two_folds(fitted):
+    """With K>2 the leave-one-out models share folds pairwise, so no pair of
+    them is disjoint and the guarantee does not hold."""
+    model, train, inv_te, att_te = fitted
+    with pytest.raises(ValueError, match="n_folds=2"):
+        cross_fitted_plan(train, inv_te.head(5), lambda d: model,
+                          lambda m: RetryPlanner(m, PolicyConfig()), n_folds=3)
+
+
+def test_policy_and_reward_model_come_from_different_fits(fitted):
+    """The bug this guards: averaging pi and q_hat over both fold-models makes
+    every row depend on both again, handing back the optimiser's curse that
+    cross-fitting exists to remove. Each row's q_hat must equal exactly one
+    model's output -- an average of the two would match neither."""
+    model, train, inv_te, att_te = fitted
+    cfg = PolicyConfig(n_posterior_samples=0)
+    ev = _soft(inv_te).head(40).reset_index(drop=True)
+
+    fitted_models = []
+
+    def fit_model(df):
+        m = CureHazardModel().fit(df)
+        fitted_models.append((m, len(df)))
+        return m
+
+    pi, dl, q = cross_fitted_plan(train, ev, fit_model,
+                                  lambda m: RetryPlanner(m, cfg), seed=0)
+    assert len(fitted_models) == 2
+    # Disjoint halves: together they cover the training rows at most once.
+    assert sum(n for _, n in fitted_models) <= len(train) + 1
+
+    plans = [RetryPlanner(m, cfg).plan(ev, explore=False) for m, _ in fitted_models]
+    match = [np.isclose(q, p.q_first).all(axis=1) for p in plans]
+    assert np.all(match[0] | match[1]), "q_hat is not a single model's output"
+    assert match[0].any() and match[1].any(), "both halves should be used"
+    # And the row's policy comes from the *other* model than its q_hat.
+    pol = [np.isclose(pi, p.pi).all(axis=1) for p in plans]
+    for row in range(len(ev)):
+        if match[0][row] and not match[1][row]:
+            assert pol[1][row] or not pol[0][row]
+
+
+# --- exploration sampling --------------------------------------------------
+
+
+def test_logged_propensity_is_the_sampling_distribution(fitted):
+    """The propensity written to the audit log must be the probability the
+    action was actually drawn with -- it becomes the denominator of the next
+    gate run. Exact by construction, not estimated."""
+    model, train, inv_te, att_te = fitted
+    cfg = PolicyConfig(n_propensity_samples=32)
+    pol = RetryPolicy(model, inv_te, SupportMap(train), cfg,
+                      rng=np.random.default_rng(4))
+    checked = 0
+    for iid in _soft(inv_te)["invoice_id"].head(25):
+        d = pol.decide(iid)
+        if d.action != "retry":
+            continue
+        row = d.curve[d.curve["bucket"] == d.bucket]
+        assert np.isclose(float(row["propensity"].iloc[0]), d.propensity)
+        assert np.isclose(d.curve["propensity"].sum(), 1.0)
+        assert d.propensity > 0.0
+        checked += 1
+    assert checked > 5
+
+
+def test_decide_uses_the_higher_propensity_sample_count(fitted):
+    """Production logs one invoice at a time, where extra posterior draws cost
+    milliseconds. Batch planning keeps the cheap setting."""
+    model, train, inv_te, _ = fitted
+    cfg = PolicyConfig(n_posterior_samples=16, n_propensity_samples=96)
+    pol = RetryPolicy(model, inv_te, SupportMap(train), cfg)
+    assert pol.planner.cfg.n_posterior_samples == 96
+    assert cfg.n_posterior_samples == 16
+
+
+def test_shortened_planners_are_cached(fitted):
+    """Rebuilding a planner re-enumerates every candidate schedule; doing that
+    per decision is pure waste in an hourly job."""
+    model, train, inv_te, _ = fitted
+    pol = RetryPolicy(model, inv_te, SupportMap(train),
+                      PolicyConfig(n_propensity_samples=8))
+    iid = _soft(inv_te)["invoice_id"].iloc[0]
+    pol.decide(iid, attempt_index=1)
+    first = next(iter(pol._shortened.values()))
+    pol.decide(iid, attempt_index=1)
+    assert len(pol._shortened) == 1
+    assert next(iter(pol._shortened.values())) is first

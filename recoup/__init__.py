@@ -13,8 +13,8 @@ from .evaluate import (
     logged_first_attempts, off_policy_value, oracle_policy_value,
     oracle_schedule_value, realised_reward, score_model, temporal_split,
 )
-from .features import build_features, customer_history
-from .models import BetaBinomialHazard, CureHazardModel, GBMHazard
+from .features import build_features, customer_history, derive_cure_labels
+from .models import CURE_LABEL, BetaBinomialHazard, CureHazardModel, GBMHazard
 from .policy import (
     Decision, Plan, PolicyConfig, RetryPlanner, RetryPolicy, SupportMap,
     TableDisputeModel, candidate_grid, fixed_ladder_policy, month_end_policy,
@@ -27,8 +27,8 @@ __all__ = [
     "cross_fitted_plan", "deployment_gate", "expected_calibration_error", "ladder_schedules",
     "logged_first_attempts", "off_policy_value", "oracle_policy_value",
     "oracle_schedule_value", "realised_reward", "score_model", "temporal_split",
-    "build_features", "customer_history",
-    "BetaBinomialHazard", "CureHazardModel", "GBMHazard",
+    "build_features", "customer_history", "derive_cure_labels",
+    "CURE_LABEL", "BetaBinomialHazard", "CureHazardModel", "GBMHazard",
     "Decision", "Plan", "PolicyConfig", "RetryPlanner", "RetryPolicy", "SupportMap",
     "TableDisputeModel", "candidate_grid", "fixed_ladder_policy", "month_end_policy",
     "PERTURBED_WORLDS", "SimConfig", "Truth", "simulate",

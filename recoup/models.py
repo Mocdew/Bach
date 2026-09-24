@@ -30,6 +30,7 @@ matrix is hand-built so that every term is legible to a payments analyst.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -42,6 +43,11 @@ from .domain import N_DT_BUCKETS, MARKETS, NetworkAdvice, Rail
 from .features import CATEGORICAL, FEATURES, NUMERIC
 
 LABEL = "success"
+
+# Optional per-invoice partial label for the cure component. 1 = the customer
+# is known to be gone, 0 = known to be present, NaN/absent = unknown. See
+# ``features.derive_cure_labels``.
+CURE_LABEL = "known_gone"
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +88,8 @@ class CureHazardModel:
     scale_: dict = field(default_factory=dict)
     n_h_: int = 0
     converged_: bool = False
+    n_known_gone_: int = 0
+    n_known_live_: int = 0
 
     # -- design --------------------------------------------------------------
 
@@ -233,7 +241,26 @@ class CureHazardModel:
                 pen.append(self.ridge)
         return np.asarray(pen, dtype=float)
 
-    def _nll_grad(self, theta, Xh, Xc_inv, inv_idx, y, A, pen):
+    def _nll_grad(self, theta, Xh, Xc_inv, inv_idx, y, A, pen, w_gone, w_live):
+        """Negative log posterior and its gradient.
+
+        ``w_gone``/``w_live`` switch the two mixture components on and off per
+        invoice, which is what makes the model semi-supervised:
+
+        =================  ========  ========  ================================
+        label              w_gone    w_live    likelihood
+        =================  ========  ========  ================================
+        unknown            1         1         pi*A + (1-pi)*B   (the mixture)
+        known gone         1         0         pi*A
+        known present      0         1         (1-pi)*B
+        =================  ========  ========  ================================
+
+        A known-gone invoice contributes nothing to the hazard (``w_live=0``
+        zeroes its hazard gradient), which is the point: a dead instrument's
+        failures carry no information about *timing*, and letting them into
+        ``h`` is what drags the hazard curve down and the cure fraction with
+        it.
+        """
         nh = self.n_h_
         bh, bc = theta[:nh], theta[nh:]
         eta = Xh @ bh
@@ -244,15 +271,65 @@ class CureHazardModel:
         lr = y * np.log(h) + (1 - y) * np.log1p(-h)
         b_inv = np.bincount(inv_idx, weights=lr, minlength=len(A))
         B = np.exp(b_inv)
-        s = pi * A + (1 - pi) * B
+        s = w_gone * pi * A + w_live * (1 - pi) * B
         s = np.maximum(s, 1e-300)
         ll = np.sum(np.log(s)) - np.sum(pen * theta ** 2)
 
-        g_z = pi * (1 - pi) * (A - B) / s
-        g_b = (1 - pi) * B / s
+        g_z = pi * (1 - pi) * (w_gone * A - w_live * B) / s
+        g_b = w_live * (1 - pi) * B / s
         g_eta = g_b[inv_idx] * (y - h)
         grad = np.concatenate([Xh.T @ g_eta, Xc_inv.T @ g_z]) - 2 * pen * theta
         return -ll, -grad
+
+    def _cure_weights(self, df: pd.DataFrame, first: np.ndarray, A: np.ndarray):
+        """Per-invoice (w_gone, w_live) from the optional ``known_gone`` column."""
+        n_inv = len(A)
+        w_gone = np.ones(n_inv)
+        w_live = np.ones(n_inv)
+        self.n_known_gone_ = 0
+        self.n_known_live_ = 0
+        if CURE_LABEL not in df.columns:
+            return w_gone, w_live
+
+        lab = pd.to_numeric(df[CURE_LABEL], errors="coerce").to_numpy(dtype=float)[first]
+        gone = lab == 1.0
+        live = lab == 0.0
+
+        # "Known gone" but the invoice was recovered is a contradiction -- the
+        # label is wrong, not the data. Fail loudly and fall back to unknown
+        # rather than driving the likelihood to zero.
+        contradictory = gone & (A == 0.0)
+        if contradictory.any():
+            warnings.warn(
+                f"{int(contradictory.sum())} invoice(s) labelled known_gone=1 were "
+                "recovered; treating them as unlabelled. Check the label source.",
+                RuntimeWarning, stacklevel=3,
+            )
+            gone = gone & ~contradictory
+
+        w_live[gone] = 0.0
+        w_gone[live] = 0.0
+        self.n_known_gone_ = int(gone.sum())
+        self.n_known_live_ = int(live.sum())
+
+        # One-sided labels bias the cure fraction, hard. Labelling is
+        # outcome-dependent -- an invoice is labelled present *because* the
+        # customer came back -- so the unlabelled term needs a "this live
+        # customer went unlabelled" factor that this likelihood does not
+        # model. Without the other side to balance it, pi collapses toward
+        # zero and the planner stops recommending "give up".
+        if bool(gone.any()) != bool(live.any()):
+            have = "present" if live.any() else "gone"
+            warnings.warn(
+                f"cure labels are one-sided ({have} only: "
+                f"{self.n_known_live_} present, {self.n_known_gone_} gone). "
+                "This biases the cure fraction -- labelling is outcome-dependent, "
+                "so the unlabelled invoices carry a selection correction this "
+                "likelihood does not model. Supply both sides or leave the "
+                "labels out; see features.derive_cure_labels.",
+                RuntimeWarning, stacklevel=3,
+            )
+        return w_gone, w_live
 
     def fit(self, df: pd.DataFrame) -> "CureHazardModel":
         df = df.reset_index(drop=True)
@@ -266,6 +343,8 @@ class CureHazardModel:
         Xc_inv = Xc[first]
         A = 1.0 - np.bincount(inv_codes, weights=y, minlength=len(inv_uniques)).clip(0, 1)
 
+        w_gone, w_live = self._cure_weights(df, first, A)
+
         pen = self._penalty_vec()
         theta0 = np.zeros(Xh.shape[1] + Xc.shape[1])
         theta0[self.n_h_] = -1.0          # cure intercept: prior ~27% gone
@@ -274,12 +353,22 @@ class CureHazardModel:
             if n.startswith("int:"):
                 theta0[j] = base + 0.5
 
-        res = minimize(self._nll_grad, theta0, args=(Xh, Xc_inv, inv_codes, y, A, pen),
+        args = (Xh, Xc_inv, inv_codes, y, A, pen, w_gone, w_live)
+        res = minimize(self._nll_grad, theta0, args=args,
                        jac=True, method="L-BFGS-B",
                        options={"maxiter": self.max_iter, "ftol": 1e-10})
         self.theta_ = res.x
         self.converged_ = bool(res.success)
-        self.cov_ = self._laplace_cov(res.x, Xh, Xc_inv, inv_codes, y, A, pen)
+        if not self.converged_:
+            # Silent non-convergence used to ship a model. Downstream the
+            # Laplace covariance is meaningless too, so Thompson sampling
+            # would be drawing from noise.
+            warnings.warn(
+                f"CureHazardModel did not converge in {self.max_iter} iterations "
+                f"({res.message}); coefficients and the Laplace covariance are "
+                "not trustworthy.", RuntimeWarning, stacklevel=2,
+            )
+        self.cov_ = self._laplace_cov(res.x, *args)
         return self
 
     def _laplace_cov(self, theta, *args) -> np.ndarray:
