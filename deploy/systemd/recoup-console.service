@@ -1,0 +1,26 @@
+# The live operator console: FastAPI over the jobs' state + the React UI
+# (web/dist). Replaces recoup-web.service (a static page over dashboard.json)
+# for anyone who wants the live view; the two can run side by side on
+# different ports. Install recoup-common.conf as its drop-in too, so it reads
+# the same RECOUP_* paths as retrain/plan/gate:
+#   /etc/systemd/system/recoup-console.service.d/00-common.conf
+# LAN / Tailscale only -- there is no authentication. The only mutating
+# endpoint (POST /api/sim/step) refuses anything but a synthetic dataset.
+[Unit]
+Description=recoup: operator console (API + web UI)
+After=network.target
+
+[Service]
+Type=simple
+# Built on a dev machine (`cd web && npm ci && npm run build`) and copied
+# here -- the server needs no Node.js.
+Environment=RECOUP_WEB=/opt/recoup/web
+ExecStart=/opt/recoup/venv/bin/recoup-ops serve --host 0.0.0.0 --port 8081
+Restart=always
+RestartSec=3
+# Reads model bundles and CSVs; the planner re-run for one invoice is ~1 s.
+MemoryMax=1G
+CPUWeight=50
+
+[Install]
+WantedBy=multi-user.target

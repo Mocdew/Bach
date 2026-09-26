@@ -1,10 +1,10 @@
 # Running recoup on an old Linux laptop
 
 Two things run on the laptop: the **dashboard builder** (nightly, ~2–3 min) and
-a **static web server** for the console page. Everything else in
-`deploy/systemd/` (retrain / plan / gate) needs the `recoup-ops` entry point and
-a pinned Bachs adapter, which don't exist yet — leave those units installed but
-not enabled until then.
+a **static web server** for the console page. The batch jobs in
+`deploy/systemd/` (retrain / plan / gate) run `recoup-ops` against a dataset
+directory; until a Bachs fetcher exists that is a synthetic one — step 5b sets
+it up, and it is optional.
 
 What you see on your main laptop at the end: `http://<laptop-ip>:8080/`, the
 same console as the Claude artifact, refreshed every night from the server.
@@ -116,8 +116,49 @@ systemctl status recoup-web.service --no-pager && systemctl list-timers 'recoup-
 On the laptop itself: `curl -s localhost:8080/dashboard.json | head -c 200`
 should print JSON.
 
-**Do not** `enable recoup.target` yet — it also pulls in retrain/plan/gate,
-which will fail until `recoup-ops` exists.
+## 5b. (Optional) run the batch jobs on synthetic data
+
+`recoup.target` pulls in retrain / plan / gate. They need a dataset in
+`RECOUP_DATA=/var/lib/recoup/data`; make a synthetic one as the same dynamic
+user the jobs run as, so the ownership is right:
+
+```bash
+sudo systemd-run --wait --pipe -p DynamicUser=yes -p StateDirectory=recoup -p UMask=0077 /opt/recoup/venv/bin/recoup-ops synth --out /var/lib/recoup/data
+```
+
+```bash
+sudo systemctl start recoup-retrain.service && sudo systemctl enable --now recoup.target
+```
+
+The synthetic world's clock does not move on its own: `plan` will decide the
+open invoices once, and then find nothing new. To step it forward a day
+(executing the queued retries against the simulator), run the same
+`systemd-run` line with `advance --data /var/lib/recoup/data --queue
+/var/lib/recoup/queue --hours 24`. With real data none of this applies — the
+clock is the wall clock.
+
+## 5c. (Optional) the live console
+
+The static page shows last night's snapshot. `recoup-console.service` serves
+the live console (API + UI, see `web/README.md`) on port 8081 over the same
+state the jobs write. Build the UI on your main laptop — the server needs no
+Node.js — then copy it over:
+
+```bash
+cd web && npm ci && npm run build && scp -r dist ops@192.168.1.42:/tmp/recoup-web
+```
+
+On the server:
+
+```bash
+/opt/recoup/venv/bin/pip install '/opt/recoup/src[api]' && sudo rm -rf /opt/recoup/web && sudo mv /tmp/recoup-web /opt/recoup/web
+```
+
+```bash
+sudo install -Dm644 /opt/recoup/src/deploy/systemd/recoup-console.service -t /etc/systemd/system/ && sudo install -Dm644 /opt/recoup/src/deploy/systemd/recoup-common.conf /etc/systemd/system/recoup-console.service.d/00-common.conf && sudo systemctl daemon-reload && sudo systemctl enable --now recoup-console.service
+```
+
+Then `http://192.168.1.42:8081/`. Allow the port the same way as step 6.
 
 ## 6. Open it on your main laptop
 
@@ -167,7 +208,9 @@ open ports. The `ufw` rule from step 6 needs `tailscale0` allowed too:
 
 ## When the Bachs adapter is real
 
-Change `simulate()` to `from_payments()` in `export_dashboard.py`, remove
-`PrivateNetwork=yes` from `recoup-dashboard.service`, add the API key with
-`systemd-creds` as described in `systemd/README.md`, then write `recoup-ops`
-and enable `recoup.target`. Nothing about the web server or the page changes.
+Write the fetcher that fills `RECOUP_DATA` from the API (and the executor that
+turns `queue/*.jsonl` into retry calls), change `simulate()` to
+`recoup.store.load_dataset()` in `export_dashboard.py`, remove
+`PrivateNetwork=yes` from `recoup-dashboard.service`, and add the API key with
+`systemd-creds` as described in `systemd/README.md`. Nothing about the web
+server, the page or the `recoup-ops` jobs changes.
