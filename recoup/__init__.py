@@ -20,6 +20,9 @@ from .policy import (
     TableDisputeModel, candidate_grid, fixed_ladder_policy, month_end_policy,
 )
 from .simulator import PERTURBED_WORLDS, SimConfig, Truth, simulate
+from .synthetic import SynthConfig, advance_world, generate_dataset
+from .store import ModelBundle, load_bundle, load_dataset
+from .bachs import from_payments, validate_schema
 
 __all__ = [
     "DEFAULT_EPOCH", "HARD_DECLINES", "MARKETS", "N_DT_BUCKETS", "NO_RETRY_ADVICE",
@@ -32,4 +35,6 @@ __all__ = [
     "Decision", "Plan", "PolicyConfig", "RetryPlanner", "RetryPolicy", "SupportMap",
     "TableDisputeModel", "candidate_grid", "fixed_ladder_policy", "month_end_policy",
     "PERTURBED_WORLDS", "SimConfig", "Truth", "simulate",
+    "SynthConfig", "advance_world", "generate_dataset",
+    "ModelBundle", "load_bundle", "load_dataset", "from_payments", "validate_schema",
 ]

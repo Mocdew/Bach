@@ -4,3 +4,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# local runs of recoup-ops (synthetic data, model bundles, audit logs)
+data/
+var/

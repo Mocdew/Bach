@@ -150,7 +150,9 @@ def customer_history(invoices: pd.DataFrame, attempts: pd.DataFrame | None) -> p
 
 def derive_cure_labels(invoices: pd.DataFrame, attempts: pd.DataFrame,
                        gone_events: pd.DataFrame | None = None,
-                       window_h: float = MAX_HORIZON_H) -> pd.Series:
+                       window_h: float = MAX_HORIZON_H,
+                       successes: pd.DataFrame | None = None,
+                       gone_within_h: float | None = None) -> pd.Series:
     """Partial labels for the cure component: 1 = gone, 0 = present, NaN = unknown.
 
     The cure fraction ``pi`` is the hardest thing in the model to identify. All
@@ -193,6 +195,19 @@ def derive_cure_labels(invoices: pd.DataFrame, attempts: pd.DataFrame,
     than left as a plausible-looking default. A dead card is evidence about
     the *instrument*, not about whether the human intends to keep paying.
 
+    ``successes`` (``customer_id``, ``t_h``) widens the present side to *any*
+    successful payment -- a regular renewal that went through is the most
+    common way a customer proves they are still there, and the retry table
+    alone never sees it. ``from_payments`` returns this frame.
+
+    ``gone_within_h`` bounds how long after the failure a gone event may land
+    and still label the invoice. A customer who cancels five months later
+    was not necessarily gone when this invoice failed; with churn modelled as
+    an onset time, an unbounded window labels every earlier invoice of a
+    future canceller as gone. An invoice that was itself recovered is never
+    labelled gone -- the label would contradict the outcome, and the model
+    would throw it away with a warning anyway.
+
     These are *labels*, not features: they look at data after the invoice's
     failure time and are consumed only by ``CureHazardModel.fit``. Nothing in
     ``build_features`` reads them, so they cannot reach inference. Derive them
@@ -205,8 +220,15 @@ def derive_cure_labels(invoices: pd.DataFrame, attempts: pd.DataFrame,
 
     att = attempts.merge(invoices[["invoice_id", "customer_id"]], on="invoice_id", how="inner")
     wins = att[att["success"] == 1]
-    last_win = (wins.groupby("customer_id")["attempt_time_h"].max().astype(float).to_dict()
-                if len(wins) else {})
+    win_times = [pd.DataFrame({"customer_id": wins["customer_id"].to_numpy(),
+                               "t_h": wins["attempt_time_h"].to_numpy(dtype=float)})]
+    if successes is not None and len(successes):
+        win_times.append(successes[["customer_id", "t_h"]])
+    all_wins = pd.concat(win_times, ignore_index=True)
+    last_win = (all_wins.groupby("customer_id")["t_h"].max().astype(float).to_dict()
+                if len(all_wins) else {})
+    recovered = set(wins["invoice_id"])
+    horizon = np.inf if gone_within_h is None else float(gone_within_h)
 
     first_dead: dict = {}
     if gone_events is not None and len(gone_events):
@@ -216,13 +238,15 @@ def derive_cure_labels(invoices: pd.DataFrame, attempts: pd.DataFrame,
                 first_dead[cust] = float(t)
 
     out = np.full(len(invoices), np.nan)
-    for i, (cust, ft) in enumerate(zip(invoices["customer_id"].to_numpy(),
-                                       invoices["fail_time_h"].to_numpy(dtype=float))):
+    for i, (inv, cust, ft) in enumerate(zip(invoices["invoice_id"].to_numpy(),
+                                            invoices["customer_id"].to_numpy(),
+                                            invoices["fail_time_h"].to_numpy(dtype=float))):
         close = ft + window_h
         came_back = cust in last_win and last_win[cust] > close
         if came_back:
             out[i] = 0.0
-        elif cust in first_dead and first_dead[cust] > ft:
+        elif (cust in first_dead and ft < first_dead[cust] <= ft + horizon
+              and inv not in recovered):
             out[i] = 1.0
     return pd.Series(out, index=idx, dtype=float)
 

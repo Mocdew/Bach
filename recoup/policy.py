@@ -186,6 +186,9 @@ class Decision:
     rationale: str
     schedule_h: tuple[float, ...] = ()
     curve: pd.DataFrame | None = None
+    # Best schedule if each viable bucket goes first -- lets a caller show the
+    # planner's *best* plan next to the exploratory draw it actually took.
+    schedules_by_bucket: dict[int, tuple[float, ...]] = field(default_factory=dict)
 
 
 class SupportMap:
@@ -282,14 +285,37 @@ class RetryPlanner:
 
     # -- components -------------------------------------------------------------
 
-    def _components(self, invoices: pd.DataFrame, theta: np.ndarray | None = None):
-        """pi (n,), h (n, K, C), viable (n, C), K per invoice (n,)."""
+    def _components(self, invoices: pd.DataFrame, theta: np.ndarray | None = None,
+                    attempt_offset: int = 0, earliest_h: np.ndarray | None = None,
+                    past_delays: list | None = None):
+        """pi (n,), h (n, K, C), viable (n, C), K per invoice (n,).
+
+        ``attempt_offset`` plans the *remaining* schedule of an invoice that
+        has already had that many attempts: the model is scored at attempt
+        index ``k + offset`` so fatigue is priced in. ``past_delays`` (one
+        sequence per invoice) are the delays of those failed attempts; P(gone)
+        is updated on them by Bayes' rule, under each posterior draw
+        separately. ``earliest_h`` masks candidate delays that are already in
+        the past or too close to the previous attempt.
+        """
         n, C, K = len(invoices), len(self.grid), self.cfg.horizon
         triples = pd.DataFrame({
             "invoice_id": np.repeat(invoices["invoice_id"].to_numpy(), K * C),
-            "attempt_index": np.tile(np.repeat(np.arange(K), C), n),
+            "attempt_index": np.tile(np.repeat(np.arange(K) + int(attempt_offset), C), n),
             "delay_hours": np.tile(self.grid, n * K),
         })
+        n_grid = len(triples)
+        past_owner = None
+        if past_delays is not None and any(len(p) for p in past_delays):
+            owner, idx, dl = [], [], []
+            for i, ds in enumerate(past_delays):
+                for j, d in enumerate(ds):
+                    owner.append(i); idx.append(j); dl.append(float(d))
+            past_owner = np.asarray(owner, dtype=int)
+            triples = pd.concat([triples, pd.DataFrame({
+                "invoice_id": invoices["invoice_id"].to_numpy()[past_owner],
+                "attempt_index": idx, "delay_hours": dl,
+            })], ignore_index=True)
         feats = build_features(invoices, triples)
         if hasattr(self.model, "predict_components"):
             if hasattr(self.model, "_designs"):
@@ -297,23 +323,39 @@ class RetryPlanner:
                 nh = self.model.n_h_
                 from scipy.special import expit
 
-                def predict(th):
+                def raw(th):
                     return expit(Xc @ th[nh:]), expit(Xh @ th[:nh])
             else:
-                def predict(th):
+                def raw(th):
                     return self.model.predict_components(feats, th)
         else:  # plain classifier: no cure component
-            def predict(th):
+            def raw(th):
                 h_ = self.model.predict_proba1(feats)
                 return np.zeros_like(h_), h_
+
+        def predict(th):
+            pi_all, h_all = raw(th)
+            pi_ = np.asarray(pi_all[:n_grid]).reshape(n, K, C)[:, 0, 0]
+            h_ = np.asarray(h_all[:n_grid]).reshape(n, K, C)
+            if past_owner is not None:
+                # P(gone | failed at the past delays): every failure is more
+                # likely under "gone", so this only ever moves pi up.
+                log_surv = np.bincount(
+                    past_owner, minlength=n,
+                    weights=np.log1p(-np.clip(np.asarray(h_all[n_grid:]), 0.0, 1 - 1e-9)))
+                surv = np.exp(log_surv)
+                pi_ = pi_ / np.maximum(pi_ + (1 - pi_) * surv, 1e-12)
+            return pi_, h_
+
         self._predict = predict
         pi, h = predict(theta if theta is not None else getattr(self.model, "theta_", None))
-        pi = pi.reshape(n, K, C)[:, 0, 0]
-        h = h.reshape(n, K, C)
+        feats = feats.iloc[:n_grid]
 
         local_hour = feats["local_hour"].to_numpy().reshape(n, K, C)[:, 0, :]
         quiet = _in_quiet_hours(local_hour, self.cfg.quiet_hours_local)
         viable = ~quiet & (self.grid[None, :] >= self.cfg.min_spacing_h)
+        if earliest_h is not None:
+            viable &= self.grid[None, :] >= np.asarray(earliest_h, dtype=float)[:, None]
 
         rc = feats["reason_class"].astype(str).to_numpy().reshape(n, K, C)[:, 0, 0]
         rails = invoices["rail"].astype(str).to_numpy()
@@ -334,13 +376,13 @@ class RetryPlanner:
                          for r in rails])
         return pi, h, viable, caps, feats
 
-    def _per_attempt_terms(self, invoices: pd.DataFrame):
+    def _per_attempt_terms(self, invoices: pd.DataFrame, attempt_offset: int = 0):
         """Reward pieces that do not depend on the model: (n, K, C) arrays."""
         n, C, K = len(invoices), len(self.grid), self.cfg.horizon
         amount = invoices["amount_usd"].to_numpy(dtype=float)[:, None, None]
         rails = invoices["rail"].astype(str).to_numpy()
         disc = np.exp(-self.cfg.daily_discount * self.grid / 24.0)[None, None, :]
-        p_disp = np.array([[[self.dispute(k, float(t), Rail(r)) for t in self.grid]
+        p_disp = np.array([[[self.dispute(k + attempt_offset, float(t), Rail(r)) for t in self.grid]
                             for k in range(K)] for r in rails])
         gain = amount * disc - p_disp * (amount + self.cfg.dispute_fee_usd)   # on success
         cost = np.array([self.cfg.attempt_cost_usd + self.cfg.annoyance(r) for r in rails])
@@ -395,11 +437,18 @@ class RetryPlanner:
                 best_m[better, b] = cols[j[better]]
         return q, best_L, best_m
 
-    def plan(self, invoices: pd.DataFrame, explore: bool = True) -> Plan:
+    def plan(self, invoices: pd.DataFrame, explore: bool = True, *,
+             attempt_offset: int = 0, earliest_h: np.ndarray | None = None,
+             past_delays: list | None = None) -> Plan:
+        """Plan every invoice's schedule. The keyword arguments continue a
+        schedule already under way; see ``_components``. Delays in the result
+        are always hours since the *original* failure."""
         invoices = invoices.reset_index(drop=True)
         n = len(invoices)
-        pi, h, viable, caps, _ = self._components(invoices)
-        gain, cost = self._per_attempt_terms(invoices)
+        pi, h, viable, caps, _ = self._components(
+            invoices, attempt_offset=attempt_offset, earliest_h=earliest_h,
+            past_delays=past_delays)
+        gain, cost = self._per_attempt_terms(invoices, attempt_offset)
 
         values = self._schedule_values(pi, h, viable, caps, gain, cost)
         q, best_L, best_m = self._first_action_summary(values)
@@ -425,11 +474,8 @@ class RetryPlanner:
             thetas = self.model.sample_params(S, self.rng)
             thetas = self.model.theta_ + self.cfg.posterior_temperature * (thetas - self.model.theta_)
             counts = np.zeros((n, N_DT_BUCKETS))
-            K, C = self.cfg.horizon, len(self.grid)
             for th in thetas:
                 pi_s, h_s = self._predict(th)
-                pi_s = pi_s.reshape(n, K, C)[:, 0, 0]
-                h_s = h_s.reshape(n, K, C)
                 v_s = self._schedule_values(pi_s, h_s, viable, caps, gain, cost)
                 q_s, _, _ = self._first_action_summary(v_s)
                 bs = np.argmax(np.where(np.isfinite(q_s), q_s, -np.inf), axis=1)
@@ -535,8 +581,24 @@ class RetryPolicy:
                 self.planner.support, self.rng)
         return self._shortened[key]
 
-    def decide(self, invoice_id: str, attempt_index: int = 0) -> Decision:
+    def decide(self, invoice_id: str, attempt_index: int = 0, *,
+               past_delays: tuple[float, ...] = (), now_elapsed_h: float = 0.0,
+               lead_h: float = 0.25) -> Decision:
+        """Decide the next retry of one invoice.
+
+        For a schedule already under way pass the delays of the failed
+        attempts so far (``past_delays``, hours since the original failure)
+        and how long ago the invoice failed (``now_elapsed_h``). The planner
+        then scores the model at the right attempt index, updates P(gone) on
+        the observed failures, and only considers delays at least ``lead_h``
+        from now and ``min_spacing_h`` after the previous attempt. Without
+        them a continuation decision prices every retry as if it were the
+        first and can pick a time that has already passed.
+        """
         inv = self.invoices.loc[[invoice_id]].reset_index(drop=True)
+        past = tuple(float(d) for d in past_delays)
+        earliest = max(float(now_elapsed_h) + (lead_h if now_elapsed_h > 0 else 0.0),
+                       past[-1] + self.cfg.min_spacing_h if past else 0.0)
         reason = DeclineReason(inv["decline_reason"].iloc[0])
         advice = NetworkAdvice(inv["network_advice"].iloc[0]) if "network_advice" in inv else NetworkAdvice.NONE
         cap = min(self.cfg.max_attempts, self.rules.attempt_cap(Rail(inv["rail"].iloc[0])))
@@ -551,9 +613,11 @@ class RetryPolicy:
             return Decision("stop", None, None, 0.0, 0.0, 0.0, 1.0,
                             f"attempt cap of {cap} reached for this rail")
 
-        # Remaining attempts shrink with attempt_index; shift the planner's
-        # attempt index by re-labelling the invoice's history length.
-        plan = self._planner_for(attempt_index, cap).plan(inv)
+        # Remaining attempts shrink with attempt_index; the shortened planner
+        # scores the model at the true attempt index via attempt_offset.
+        plan = self._planner_for(attempt_index, cap).plan(
+            inv, attempt_offset=attempt_index, earliest_h=np.array([earliest]),
+            past_delays=[past] if past else None)
         if plan.pi[0].sum() <= 0:
             if plan.viable is not None and plan.viable[0].any():
                 return Decision("route_to_update_method", None, None, float(plan.p_first[0]),
@@ -574,6 +638,7 @@ class RetryPolicy:
                        f"best of {len(plan.schedule[0])}-attempt schedule; "
                        f"P(gone)={plan.p_gone[0]:.2f}"),
             schedule_h=plan.schedule_by_bucket[0].get(b, plan.schedule[0]), curve=curve,
+            schedules_by_bucket=dict(plan.schedule_by_bucket[0]),
         )
 
 

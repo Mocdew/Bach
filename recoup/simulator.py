@@ -256,12 +256,41 @@ def _draw_advice(rng: np.random.Generator, rail: Rail, reason: DeclineReason) ->
 # ---------------------------------------------------------------------------
 
 
-def logging_policy_propensities(cfg: SimConfig, attempt_index: int) -> np.ndarray:
-    """Distribution over delay buckets used by the incumbent policy."""
-    probs = np.full(N_DT_BUCKETS, cfg.epsilon / N_DT_BUCKETS)
+# Minimum gap between consecutive attempts of the logging policy.
+LOGGING_MIN_SPACING_H = 2.0
+
+
+def _logging_mass(cfg: SimConfig, attempt_index: int, prev_delay_h: float | None):
+    """Unnormalised bucket mass of the incumbent, and whether its ladder rung
+    is still reachable. After a previous attempt only later delays exist."""
+    from .domain import DT_BUCKET_EDGES_H
+
+    earliest = -np.inf if prev_delay_h is None else prev_delay_h + LOGGING_MIN_SPACING_H
+    reachable = np.asarray(DT_BUCKET_EDGES_H[1:]) > earliest
+    mass = np.where(reachable, cfg.epsilon / N_DT_BUCKETS, 0.0)
     ladder_h = cfg.ladder_h[min(attempt_index, len(cfg.ladder_h) - 1)]
-    probs[int(dt_bucket(ladder_h))] += 1.0 - cfg.epsilon
-    return probs
+    ladder_ok = ladder_h >= earliest
+    if ladder_ok:
+        mass[int(dt_bucket(ladder_h))] += 1.0 - cfg.epsilon
+    return mass, ladder_ok, earliest
+
+
+def logging_policy_propensities(cfg: SimConfig, attempt_index: int,
+                                prev_delay_h: float | None = None) -> np.ndarray:
+    """Distribution over delay buckets used by the incumbent policy.
+
+    For a continuation attempt pass the previous attempt's delay: buckets that
+    end before it (plus the minimum spacing) are impossible and get no mass,
+    and the rest is renormalised, so the logged propensity stays the exact
+    probability the delay was drawn with. An earlier version drew every
+    attempt independently, which put attempt k+1 *before* attempt k in about
+    2% of histories -- invisible in the in-memory tables, and a corrupted
+    join as soon as the data went through a time-ordered payment stream.
+    All zeros means the horizon has no room for another attempt.
+    """
+    mass, _, _ = _logging_mass(cfg, attempt_index, prev_delay_h)
+    total = mass.sum()
+    return mass / total if total > 0 else mass
 
 
 # ---------------------------------------------------------------------------
@@ -276,18 +305,22 @@ def _draw_reason(rng: np.random.Generator, rail: Rail) -> DeclineReason:
     return keys[int(rng.choice(len(keys), p=p / p.sum()))]
 
 
-def _bucket_midpoint_h(b: int, rng: np.random.Generator) -> float:
+def _bucket_midpoint_h(b: int, rng: np.random.Generator, earliest: float = -np.inf) -> float:
+    """Uniform draw inside bucket ``b``, above ``earliest``."""
     from .domain import DT_BUCKET_EDGES_H
 
     lo, hi = DT_BUCKET_EDGES_H[b], DT_BUCKET_EDGES_H[b + 1]
-    return float(rng.uniform(lo, hi))
+    return float(rng.uniform(max(lo, earliest), hi))
 
 
-def simulate(cfg: SimConfig | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def simulate(cfg: SimConfig | None = None, *, return_customers: bool = False):
     """Generate (invoices, attempts).
 
     ``attempts`` is the training table: one row per retry actually made, with
-    the logging propensity attached.
+    the logging propensity attached. ``return_customers=True`` adds a third
+    frame with each customer's hidden state (quality, churn onset) -- what
+    ``recoup.synthetic`` needs to emit renewals and cancellations consistent
+    with the invoices. The random stream is the same either way.
     """
     cfg = cfg or SimConfig()
     truth = cfg.truth
@@ -356,13 +389,21 @@ def simulate(cfg: SimConfig | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
         if reason in HARD_DECLINES:
             continue  # routed to new-payment-method flow, never retried
 
+        prev_delay = None
         for k in range(cfg.max_attempts):
-            probs = logging_policy_propensities(cfg, k)
+            mass, ladder_ok, earliest = _logging_mass(cfg, k, prev_delay)
+            if mass.sum() <= 0:
+                break  # no room left in the dunning window
+            probs = mass / mass.sum()
             ladder_h = cfg.ladder_h[min(k, len(cfg.ladder_h) - 1)]
             ladder_b = int(dt_bucket(ladder_h))
             b = int(rng.choice(N_DT_BUCKETS, p=probs))
-            exploring = rng.random() >= (1.0 - cfg.epsilon) / probs[b] if b == ladder_b else True
-            delay = _bucket_midpoint_h(b, rng) if exploring else ladder_h
+            # Which component of the mixture produced b? Identical to the
+            # original draw on attempt 0, where the mass already sums to one.
+            exploring = (rng.random() >= (1.0 - cfg.epsilon) / mass[b]
+                         if b == ladder_b and ladder_ok else True)
+            delay = _bucket_midpoint_h(b, rng, earliest) if exploring else ladder_h
+            prev_delay = delay
             att_time = fail_h + delay
 
             p = true_success_prob(
@@ -390,6 +431,8 @@ def simulate(cfg: SimConfig | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     invoices = pd.DataFrame(inv_rows)
     attempts = pd.DataFrame(att_rows)
+    if return_customers:
+        return invoices, attempts, pd.DataFrame(customers)
     return invoices, attempts
 
 

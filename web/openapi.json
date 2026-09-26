@@ -1,0 +1,2746 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "recoup console API",
+  "description": "Read models over the recoup batch jobs' state. Contract for web/ -- see recoup/api/schemas.py.",
+  "version": "0.3.0"
+ },
+ "paths": {
+  "/api/health": {
+   "get": {
+    "tags": [
+     "meta"
+    ],
+    "summary": "Health",
+    "operationId": "health_api_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Health"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/overview": {
+   "get": {
+    "tags": [
+     "overview"
+    ],
+    "summary": "Overview",
+    "operationId": "overview_api_overview_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Overview"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/gate": {
+   "get": {
+    "tags": [
+     "gate"
+    ],
+    "summary": "Gate",
+    "operationId": "gate_api_gate_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GateStatus"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/gate/history": {
+   "get": {
+    "tags": [
+     "gate"
+    ],
+    "summary": "Gate History",
+    "operationId": "gate_history_api_gate_history_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/GateHistoryPoint"
+         },
+         "type": "array",
+         "title": "Response Gate History Api Gate History Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/model": {
+   "get": {
+    "tags": [
+     "model"
+    ],
+    "summary": "Model",
+    "operationId": "model_api_model_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/ModelSummary"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Model Api Model Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/model/versions": {
+   "get": {
+    "tags": [
+     "model"
+    ],
+    "summary": "Model Versions",
+    "operationId": "model_versions_api_model_versions_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/ModelVersion"
+         },
+         "type": "array",
+         "title": "Response Model Versions Api Model Versions Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/model/coefficients": {
+   "get": {
+    "tags": [
+     "model"
+    ],
+    "summary": "Coefficients",
+    "operationId": "coefficients_api_model_coefficients_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Coefficient"
+         },
+         "type": "array",
+         "title": "Response Coefficients Api Model Coefficients Get"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/decisions": {
+   "get": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Decisions",
+    "operationId": "decisions_api_decisions_get",
+    "parameters": [
+     {
+      "name": "mode",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mode"
+      }
+     },
+     {
+      "name": "policy",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Policy"
+      }
+     },
+     {
+      "name": "action",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Action"
+      }
+     },
+     {
+      "name": "invoice_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Invoice Id"
+      }
+     },
+     {
+      "name": "attempt_index",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Attempt Index"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DecisionPage"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/decisions/daily": {
+   "get": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Daily",
+    "operationId": "daily_api_decisions_daily_get",
+    "parameters": [
+     {
+      "name": "days",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 730,
+       "minimum": 1,
+       "default": 60,
+       "title": "Days"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DailyCount"
+         },
+         "title": "Response Daily Api Decisions Daily Get"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/decisions/coverage": {
+   "get": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Coverage",
+    "operationId": "coverage_api_decisions_coverage_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Coverage"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/invoices": {
+   "get": {
+    "tags": [
+     "invoices"
+    ],
+    "summary": "Invoices",
+    "operationId": "invoices_api_invoices_get",
+    "parameters": [
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "reason_class",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Reason Class"
+      }
+     },
+     {
+      "name": "rail",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Rail"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InvoicePage"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/invoices/{invoice_id}": {
+   "get": {
+    "tags": [
+     "invoices"
+    ],
+    "summary": "Invoice",
+    "operationId": "invoice_api_invoices__invoice_id__get",
+    "parameters": [
+     {
+      "name": "invoice_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Invoice Id"
+      }
+     },
+     {
+      "name": "explain",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": true,
+       "title": "Explain"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InvoiceDetail"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sim": {
+   "get": {
+    "tags": [
+     "simulation"
+    ],
+    "summary": "Sim Status",
+    "operationId": "sim_status_api_sim_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SimStatus"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sim/step": {
+   "post": {
+    "tags": [
+     "simulation"
+    ],
+    "summary": "Sim Step",
+    "operationId": "sim_step_api_sim_step_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StepRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SimStatus"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sim/score": {
+   "get": {
+    "tags": [
+     "simulation"
+    ],
+    "summary": "Sim Score",
+    "operationId": "sim_score_api_sim_score_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Score"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ApiError": {
+    "properties": {
+     "detail": {
+      "type": "string",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "required": [
+     "detail"
+    ],
+    "title": "ApiError"
+   },
+   "AttemptRow": {
+    "properties": {
+     "attempt_index": {
+      "type": "integer",
+      "title": "Attempt Index"
+     },
+     "attempted_at": {
+      "type": "string",
+      "title": "Attempted At"
+     },
+     "delay_hours": {
+      "type": "number",
+      "title": "Delay Hours"
+     },
+     "dt_bucket": {
+      "type": "integer",
+      "title": "Dt Bucket"
+     },
+     "success": {
+      "type": "boolean",
+      "title": "Success"
+     },
+     "disputed": {
+      "type": "boolean",
+      "title": "Disputed"
+     }
+    },
+    "type": "object",
+    "required": [
+     "attempt_index",
+     "attempted_at",
+     "delay_hours",
+     "dt_bucket",
+     "success",
+     "disputed"
+    ],
+    "title": "AttemptRow"
+   },
+   "BucketInfo": {
+    "properties": {
+     "bucket": {
+      "type": "integer",
+      "title": "Bucket"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "lo_h": {
+      "type": "number",
+      "title": "Lo H"
+     },
+     "hi_h": {
+      "type": "number",
+      "title": "Hi H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "bucket",
+     "label",
+     "lo_h",
+     "hi_h"
+    ],
+    "title": "BucketInfo"
+   },
+   "Coefficient": {
+    "properties": {
+     "part": {
+      "type": "string",
+      "enum": [
+       "hazard",
+       "cure"
+      ],
+      "title": "Part"
+     },
+     "term": {
+      "type": "string",
+      "title": "Term"
+     },
+     "coef": {
+      "type": "number",
+      "title": "Coef"
+     },
+     "se": {
+      "type": "number",
+      "title": "Se"
+     }
+    },
+    "type": "object",
+    "required": [
+     "part",
+     "term",
+     "coef",
+     "se"
+    ],
+    "title": "Coefficient"
+   },
+   "Coverage": {
+    "properties": {
+     "buckets": {
+      "items": {
+       "$ref": "#/components/schemas/BucketInfo"
+      },
+      "type": "array",
+      "title": "Buckets"
+     },
+     "ladder_bucket": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ladder Bucket"
+     },
+     "by_mode": {
+      "additionalProperties": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "type": "object",
+      "title": "By Mode",
+      "description": "share of first-retry decisions per bucket, per logging mode"
+     },
+     "n_by_mode": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "N By Mode"
+     }
+    },
+    "type": "object",
+    "required": [
+     "buckets",
+     "ladder_bucket",
+     "by_mode",
+     "n_by_mode"
+    ],
+    "title": "Coverage"
+   },
+   "CurvePoint": {
+    "properties": {
+     "bucket": {
+      "type": "integer",
+      "title": "Bucket"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "delay_h": {
+      "type": "number",
+      "title": "Delay H"
+     },
+     "value_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value Usd",
+      "description": "schedule value if this bucket goes first"
+     },
+     "propensity": {
+      "type": "number",
+      "title": "Propensity"
+     },
+     "viable": {
+      "type": "boolean",
+      "title": "Viable"
+     }
+    },
+    "type": "object",
+    "required": [
+     "bucket",
+     "label",
+     "delay_h",
+     "value_usd",
+     "propensity",
+     "viable"
+    ],
+    "title": "CurvePoint"
+   },
+   "DailyCount": {
+    "properties": {
+     "day": {
+      "type": "string",
+      "title": "Day"
+     },
+     "policy": {
+      "type": "string",
+      "title": "Policy"
+     },
+     "n": {
+      "type": "integer",
+      "title": "N"
+     }
+    },
+    "type": "object",
+    "required": [
+     "day",
+     "policy",
+     "n"
+    ],
+    "title": "DailyCount"
+   },
+   "DecisionPage": {
+    "properties": {
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/DecisionRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     },
+     "facets": {
+      "additionalProperties": {
+       "additionalProperties": {
+        "type": "integer"
+       },
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Facets",
+      "description": "counts per value of mode / policy / action over the filtered set"
+     }
+    },
+    "type": "object",
+    "required": [
+     "total",
+     "offset",
+     "limit",
+     "rows",
+     "facets"
+    ],
+    "title": "DecisionPage"
+   },
+   "DecisionRow": {
+    "properties": {
+     "decision_id": {
+      "type": "string",
+      "title": "Decision Id"
+     },
+     "decided_at": {
+      "type": "string",
+      "title": "Decided At"
+     },
+     "decided_at_h": {
+      "type": "number",
+      "title": "Decided At H"
+     },
+     "invoice_id": {
+      "type": "string",
+      "title": "Invoice Id"
+     },
+     "attempt_index": {
+      "type": "integer",
+      "title": "Attempt Index"
+     },
+     "action": {
+      "type": "string",
+      "title": "Action"
+     },
+     "delay_hours": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delay Hours"
+     },
+     "execute_at_h": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Execute At H"
+     },
+     "dt_bucket": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dt Bucket"
+     },
+     "propensity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Propensity"
+     },
+     "mode": {
+      "type": "string",
+      "title": "Mode"
+     },
+     "policy": {
+      "type": "string",
+      "title": "Policy"
+     },
+     "model_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Version"
+     },
+     "p_gone": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "P Gone"
+     },
+     "p_success": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "P Success"
+     },
+     "expected_value_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Value Usd"
+     },
+     "rationale": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rationale"
+     }
+    },
+    "type": "object",
+    "required": [
+     "decision_id",
+     "decided_at",
+     "decided_at_h",
+     "invoice_id",
+     "attempt_index",
+     "action",
+     "delay_hours",
+     "execute_at_h",
+     "dt_bucket",
+     "propensity",
+     "mode",
+     "policy",
+     "model_version",
+     "p_gone",
+     "p_success",
+     "expected_value_usd",
+     "rationale"
+    ],
+    "title": "DecisionRow"
+   },
+   "Explanation": {
+    "properties": {
+     "as_of": {
+      "type": "string",
+      "enum": [
+       "now",
+       "at_failure"
+      ],
+      "title": "As Of"
+     },
+     "attempt_index": {
+      "type": "integer",
+      "title": "Attempt Index"
+     },
+     "action": {
+      "type": "string",
+      "title": "Action"
+     },
+     "rationale": {
+      "type": "string",
+      "title": "Rationale"
+     },
+     "p_gone": {
+      "type": "number",
+      "title": "P Gone"
+     },
+     "p_success": {
+      "type": "number",
+      "title": "P Success",
+      "description": "P(success) of the best schedule's first attempt"
+     },
+     "expected_value_usd": {
+      "type": "number",
+      "title": "Expected Value Usd",
+      "description": "value of the best schedule"
+     },
+     "delay_hours": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delay Hours",
+      "description": "best first delay, hours since failure"
+     },
+     "best_bucket": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Best Bucket"
+     },
+     "schedule_h": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Schedule H"
+     },
+     "explore_mass": {
+      "type": "number",
+      "title": "Explore Mass",
+      "description": "probability the logged action is NOT the best bucket",
+      "default": 0.0
+     },
+     "curve": {
+      "items": {
+       "$ref": "#/components/schemas/CurvePoint"
+      },
+      "type": "array",
+      "title": "Curve"
+     },
+     "model_version": {
+      "type": "string",
+      "title": "Model Version"
+     }
+    },
+    "type": "object",
+    "required": [
+     "as_of",
+     "attempt_index",
+     "action",
+     "rationale",
+     "p_gone",
+     "p_success",
+     "expected_value_usd",
+     "delay_hours",
+     "best_bucket",
+     "schedule_h",
+     "explore_mass",
+     "curve",
+     "model_version"
+    ],
+    "title": "Explanation",
+    "description": "The planner's *best* plan for this invoice (no exploration), plus the\nThompson distribution it samples the logged action from. The logged\ndecision can differ from ``delay_hours`` -- that is exploration."
+   },
+   "GateHistoryPoint": {
+    "properties": {
+     "generated_at": {
+      "type": "string",
+      "title": "Generated At"
+     },
+     "data_as_of": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data As Of"
+     },
+     "decision": {
+      "type": "string",
+      "enum": [
+       "HOLD",
+       "SWITCH"
+      ],
+      "title": "Decision"
+     },
+     "delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delta"
+     },
+     "lo": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lo"
+     },
+     "hi": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hi"
+     },
+     "ess": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ess"
+     },
+     "n_logged": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Logged"
+     }
+    },
+    "type": "object",
+    "required": [
+     "generated_at",
+     "data_as_of",
+     "decision",
+     "delta",
+     "lo",
+     "hi",
+     "ess",
+     "n_logged"
+    ],
+    "title": "GateHistoryPoint"
+   },
+   "GateStatus": {
+    "properties": {
+     "decision": {
+      "type": "string",
+      "enum": [
+       "HOLD",
+       "SWITCH"
+      ],
+      "title": "Decision"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     },
+     "on_file": {
+      "type": "boolean",
+      "title": "On File",
+      "description": "False when no gate has run yet (treated as HOLD)"
+     },
+     "generated_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Generated At"
+     },
+     "data_as_of": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data As Of"
+     },
+     "window_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Window Start"
+     },
+     "model_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Version"
+     },
+     "previous": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Previous"
+     },
+     "delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delta",
+      "description": "DR(planner) - DR(ladder), USD/invoice"
+     },
+     "lo": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lo"
+     },
+     "hi": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hi"
+     },
+     "ess": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ess"
+     },
+     "min_ess": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min Ess"
+     },
+     "dr_planner": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dr Planner"
+     },
+     "dr_incumbent": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dr Incumbent"
+     },
+     "n_logged": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Logged"
+     },
+     "logged_by_mode": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Logged By Mode"
+     }
+    },
+    "type": "object",
+    "required": [
+     "decision",
+     "reason",
+     "on_file",
+     "generated_at",
+     "data_as_of",
+     "window_start",
+     "model_version",
+     "previous",
+     "delta",
+     "lo",
+     "hi",
+     "ess",
+     "min_ess",
+     "dr_planner",
+     "dr_incumbent",
+     "n_logged",
+     "logged_by_mode"
+    ],
+    "title": "GateStatus"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "Health": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "title": "Ok"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "synthetic": {
+      "type": "boolean",
+      "title": "Synthetic"
+     },
+     "data_as_of": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data As Of"
+     },
+     "has_model": {
+      "type": "boolean",
+      "title": "Has Model"
+     },
+     "has_gate": {
+      "type": "boolean",
+      "title": "Has Gate"
+     },
+     "paths": {
+      "$ref": "#/components/schemas/Paths"
+     }
+    },
+    "type": "object",
+    "required": [
+     "ok",
+     "version",
+     "synthetic",
+     "data_as_of",
+     "has_model",
+     "has_gate",
+     "paths"
+    ],
+    "title": "Health"
+   },
+   "Holdout": {
+    "properties": {
+     "pr_auc": {
+      "type": "number",
+      "title": "Pr Auc"
+     },
+     "roc_auc": {
+      "type": "number",
+      "title": "Roc Auc"
+     },
+     "log_loss": {
+      "type": "number",
+      "title": "Log Loss"
+     },
+     "ece": {
+      "type": "number",
+      "title": "Ece"
+     },
+     "base_rate": {
+      "type": "number",
+      "title": "Base Rate"
+     },
+     "n_test_attempts": {
+      "type": "integer",
+      "title": "N Test Attempts"
+     }
+    },
+    "type": "object",
+    "required": [
+     "pr_auc",
+     "roc_auc",
+     "log_loss",
+     "ece",
+     "base_rate",
+     "n_test_attempts"
+    ],
+    "title": "Holdout"
+   },
+   "InvoiceDetail": {
+    "properties": {
+     "invoice": {
+      "$ref": "#/components/schemas/InvoiceRow"
+     },
+     "customer_tenure_days": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Customer Tenure Days"
+     },
+     "prior_successful_payments": {
+      "type": "integer",
+      "title": "Prior Successful Payments"
+     },
+     "active_in_window": {
+      "type": "boolean",
+      "title": "Active In Window"
+     },
+     "plan_tier": {
+      "type": "string",
+      "title": "Plan Tier"
+     },
+     "attempts": {
+      "items": {
+       "$ref": "#/components/schemas/AttemptRow"
+      },
+      "type": "array",
+      "title": "Attempts"
+     },
+     "decisions": {
+      "items": {
+       "$ref": "#/components/schemas/DecisionRow"
+      },
+      "type": "array",
+      "title": "Decisions"
+     },
+     "explanation": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Explanation"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "explanation_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Explanation Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "invoice",
+     "customer_tenure_days",
+     "prior_successful_payments",
+     "active_in_window",
+     "plan_tier",
+     "attempts",
+     "decisions",
+     "explanation",
+     "explanation_error"
+    ],
+    "title": "InvoiceDetail"
+   },
+   "InvoicePage": {
+    "properties": {
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/InvoiceRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "type": "object",
+    "required": [
+     "total",
+     "offset",
+     "limit",
+     "rows"
+    ],
+    "title": "InvoicePage"
+   },
+   "InvoiceRow": {
+    "properties": {
+     "invoice_id": {
+      "type": "string",
+      "title": "Invoice Id"
+     },
+     "merchant_id": {
+      "type": "string",
+      "title": "Merchant Id"
+     },
+     "customer_id": {
+      "type": "string",
+      "title": "Customer Id"
+     },
+     "market": {
+      "type": "string",
+      "title": "Market"
+     },
+     "rail": {
+      "type": "string",
+      "title": "Rail"
+     },
+     "decline_reason": {
+      "type": "string",
+      "title": "Decline Reason"
+     },
+     "reason_class": {
+      "type": "string",
+      "title": "Reason Class"
+     },
+     "network_advice": {
+      "type": "string",
+      "title": "Network Advice"
+     },
+     "amount_usd": {
+      "type": "number",
+      "title": "Amount Usd"
+     },
+     "fail_time_h": {
+      "type": "number",
+      "title": "Fail Time H"
+     },
+     "failed_at": {
+      "type": "string",
+      "title": "Failed At"
+     },
+     "elapsed_h": {
+      "type": "number",
+      "title": "Elapsed H"
+     },
+     "attempts": {
+      "type": "integer",
+      "title": "Attempts"
+     },
+     "recovered": {
+      "type": "boolean",
+      "title": "Recovered"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "open",
+       "recovered",
+       "routed",
+       "closed"
+      ],
+      "title": "Status"
+     },
+     "next_action": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Action"
+     },
+     "next_execute_at_h": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Execute At H"
+     },
+     "next_policy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Policy"
+     }
+    },
+    "type": "object",
+    "required": [
+     "invoice_id",
+     "merchant_id",
+     "customer_id",
+     "market",
+     "rail",
+     "decline_reason",
+     "reason_class",
+     "network_advice",
+     "amount_usd",
+     "fail_time_h",
+     "failed_at",
+     "elapsed_h",
+     "attempts",
+     "recovered",
+     "status",
+     "next_action",
+     "next_execute_at_h",
+     "next_policy"
+    ],
+    "title": "InvoiceRow"
+   },
+   "ModelSummary": {
+    "properties": {
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "trained_at": {
+      "type": "string",
+      "title": "Trained At"
+     },
+     "data_as_of": {
+      "type": "string",
+      "title": "Data As Of"
+     },
+     "n_invoices": {
+      "type": "integer",
+      "title": "N Invoices"
+     },
+     "n_attempts": {
+      "type": "integer",
+      "title": "N Attempts"
+     },
+     "n_merchants": {
+      "type": "integer",
+      "title": "N Merchants"
+     },
+     "success_rate": {
+      "type": "number",
+      "title": "Success Rate"
+     },
+     "mean_p_gone": {
+      "type": "number",
+      "title": "Mean P Gone"
+     },
+     "converged": {
+      "type": "boolean",
+      "title": "Converged"
+     },
+     "holdout": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Holdout"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "cure_labels": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Cure Labels"
+     },
+     "fit_warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Fit Warnings"
+     },
+     "dispute_base": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Dispute Base"
+     },
+     "ladder_h": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Ladder H"
+     },
+     "unmapped_codes": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Unmapped Codes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "version",
+     "trained_at",
+     "data_as_of",
+     "n_invoices",
+     "n_attempts",
+     "n_merchants",
+     "success_rate",
+     "mean_p_gone",
+     "converged",
+     "holdout",
+     "cure_labels",
+     "fit_warnings",
+     "dispute_base",
+     "ladder_h",
+     "unmapped_codes"
+    ],
+    "title": "ModelSummary"
+   },
+   "ModelVersion": {
+    "properties": {
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "current": {
+      "type": "boolean",
+      "title": "Current"
+     },
+     "trained_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Trained At"
+     },
+     "data_as_of": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data As Of"
+     },
+     "pr_auc": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pr Auc"
+     },
+     "mean_p_gone": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mean P Gone"
+     }
+    },
+    "type": "object",
+    "required": [
+     "version",
+     "current",
+     "trained_at",
+     "data_as_of",
+     "pr_auc",
+     "mean_p_gone"
+    ],
+    "title": "ModelVersion"
+   },
+   "Overview": {
+    "properties": {
+     "data_as_of": {
+      "type": "string",
+      "title": "Data As Of"
+     },
+     "synthetic": {
+      "type": "boolean",
+      "title": "Synthetic"
+     },
+     "gate": {
+      "$ref": "#/components/schemas/GateStatus"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ModelSummary"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "open_invoices": {
+      "type": "integer",
+      "title": "Open Invoices"
+     },
+     "awaiting_decision": {
+      "type": "integer",
+      "title": "Awaiting Decision"
+     },
+     "queued_retries": {
+      "type": "integer",
+      "title": "Queued Retries",
+      "description": "retries decided and not yet due"
+     },
+     "decisions_24h": {
+      "type": "integer",
+      "title": "Decisions 24H"
+     },
+     "explore_share_7d": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Explore Share 7D",
+      "description": "share of retries decided in the last 7 days that were exploration"
+     },
+     "invoices_30d": {
+      "type": "integer",
+      "title": "Invoices 30D"
+     },
+     "recovered_30d": {
+      "type": "number",
+      "title": "Recovered 30D",
+      "description": "recovery rate of invoices whose window closed in the last 30 days"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data_as_of",
+     "synthetic",
+     "gate",
+     "model",
+     "open_invoices",
+     "awaiting_decision",
+     "queued_retries",
+     "decisions_24h",
+     "explore_share_7d",
+     "invoices_30d",
+     "recovered_30d"
+    ],
+    "title": "Overview"
+   },
+   "Paths": {
+    "properties": {
+     "data": {
+      "type": "string",
+      "title": "Data"
+     },
+     "models": {
+      "type": "string",
+      "title": "Models"
+     },
+     "gate": {
+      "type": "string",
+      "title": "Gate"
+     },
+     "audit": {
+      "type": "string",
+      "title": "Audit"
+     },
+     "queue": {
+      "type": "string",
+      "title": "Queue"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data",
+     "models",
+     "gate",
+     "audit",
+     "queue"
+    ],
+    "title": "Paths"
+   },
+   "PhaseScore": {
+    "properties": {
+     "n": {
+      "type": "integer",
+      "title": "N"
+     },
+     "realised": {
+      "type": "number",
+      "title": "Realised"
+     },
+     "se": {
+      "type": "number",
+      "title": "Se"
+     },
+     "ladder_oracle": {
+      "type": "number",
+      "title": "Ladder Oracle"
+     },
+     "lift": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lift"
+     }
+    },
+    "type": "object",
+    "required": [
+     "n",
+     "realised",
+     "se",
+     "ladder_oracle",
+     "lift"
+    ],
+    "title": "PhaseScore"
+   },
+   "Score": {
+    "properties": {
+     "n_invoices": {
+      "type": "integer",
+      "title": "N Invoices"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "window": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Window"
+     },
+     "realised_per_invoice": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Realised Per Invoice"
+     },
+     "realised_se": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Realised Se"
+     },
+     "ladder_oracle_per_invoice": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ladder Oracle Per Invoice"
+     },
+     "lift_vs_ladder": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lift Vs Ladder"
+     },
+     "recovery_rate": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recovery Rate"
+     },
+     "attempts_per_invoice": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attempts Per Invoice"
+     },
+     "by_mode": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/PhaseScore"
+      },
+      "type": "object",
+      "title": "By Mode"
+     }
+    },
+    "type": "object",
+    "required": [
+     "n_invoices",
+     "note",
+     "window",
+     "realised_per_invoice",
+     "realised_se",
+     "ladder_oracle_per_invoice",
+     "lift_vs_ladder",
+     "recovery_rate",
+     "attempts_per_invoice",
+     "by_mode"
+    ],
+    "title": "Score"
+   },
+   "SimProgress": {
+    "properties": {
+     "done": {
+      "type": "integer",
+      "title": "Done"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "done",
+     "total"
+    ],
+    "title": "SimProgress"
+   },
+   "SimStatus": {
+    "properties": {
+     "synthetic": {
+      "type": "boolean",
+      "title": "Synthetic"
+     },
+     "as_of": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "As Of"
+     },
+     "as_of_h": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "As Of H"
+     },
+     "cutover": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cutover"
+     },
+     "cutover_h": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cutover H"
+     },
+     "horizon_h": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Horizon H"
+     },
+     "pending_events": {
+      "type": "integer",
+      "title": "Pending Events",
+      "default": 0
+     },
+     "busy": {
+      "type": "boolean",
+      "title": "Busy",
+      "default": false
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SimProgress"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "last_step": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StepResult"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "last_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "synthetic",
+     "as_of",
+     "as_of_h",
+     "cutover",
+     "cutover_h",
+     "horizon_h",
+     "pending_events",
+     "busy",
+     "progress",
+     "last_step",
+     "last_error"
+    ],
+    "title": "SimStatus"
+   },
+   "StepRequest": {
+    "properties": {
+     "hours": {
+      "type": "number",
+      "maximum": 336.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Hours",
+      "default": 24.0
+     },
+     "plan": {
+      "type": "boolean",
+      "title": "Plan",
+      "description": "run the plan job before moving the clock",
+      "default": true
+     },
+     "explore_rate": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Explore Rate",
+      "default": 0.2
+     }
+    },
+    "type": "object",
+    "title": "StepRequest"
+   },
+   "StepResult": {
+    "properties": {
+     "as_of": {
+      "type": "string",
+      "title": "As Of"
+     },
+     "steps": {
+      "type": "integer",
+      "title": "Steps"
+     },
+     "decisions": {
+      "type": "integer",
+      "title": "Decisions"
+     },
+     "released_failures": {
+      "type": "integer",
+      "title": "Released Failures"
+     },
+     "retries": {
+      "type": "integer",
+      "title": "Retries"
+     },
+     "recovered": {
+      "type": "integer",
+      "title": "Recovered"
+     },
+     "stale": {
+      "type": "integer",
+      "title": "Stale"
+     },
+     "seconds": {
+      "type": "number",
+      "title": "Seconds"
+     }
+    },
+    "type": "object",
+    "required": [
+     "as_of",
+     "steps",
+     "decisions",
+     "released_failures",
+     "retries",
+     "recovered",
+     "stale",
+     "seconds"
+    ],
+    "title": "StepResult"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

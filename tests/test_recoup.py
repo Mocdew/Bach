@@ -351,15 +351,23 @@ def test_thompson_keeps_every_viable_action_reachable(fitted):
 
 
 def test_dispute_cost_shortens_chosen_delays(fitted):
+    """Dispute risk grows with elapsed time, so pricing it must pull the
+    *schedule* in. Asserted on the whole schedule, not the first attempt: a
+    planner facing an expensive tail can rationally take a slightly later
+    first attempt in exchange for a much shorter tail (measured: first delay
+    35.7h -> 36.1h while the last attempt moves 134h -> 123h at a $400 fee).
+    The first-attempt version of this test passed by luck of the fixture."""
     model, train, inv_te, _ = fitted
     sub = inv_te.head(150).reset_index(drop=True)
     sup = SupportMap(train)
     lo = RetryPlanner(model, PolicyConfig(dispute_fee_usd=0.0, n_posterior_samples=0), support=sup).plan(sub)
     hi = RetryPlanner(model, PolicyConfig(dispute_fee_usd=400.0, n_posterior_samples=0), support=sup).plan(sub)
-    live = (lo.pi.sum(1) > 0) & (hi.pi.sum(1) > 0)
-    a = lo.delays[np.arange(len(sub)), lo.pi.argmax(1)][live]
-    b = hi.delays[np.arange(len(sub)), hi.pi.argmax(1)][live]
-    assert b.mean() <= a.mean() + 1e-6
+    live = [i for i in range(len(sub)) if lo.schedule[i] and hi.schedule[i]]
+    assert len(live) > 50
+    last = lambda p: np.mean([p.schedule[i][-1] for i in live])
+    every = lambda p: np.mean([h for i in live for h in p.schedule[i]])
+    assert last(hi) < last(lo)
+    assert every(hi) < every(lo)
 
 
 def test_annoyance_cost_shortens_wallet_schedules(fitted):
